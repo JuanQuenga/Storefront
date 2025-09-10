@@ -7,18 +7,20 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
   // 🚨 COMPREHENSIVE REQUEST LOGGING 🚨
-  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `req_${Date.now()}_${Math.random()
+    .toString(36)
+    .substr(2, 9)}`;
 
   logger.info("🚨 === NEW REQUEST START ===", {
     requestId,
     timestamp: new Date().toISOString(),
     method: request.method,
     url: request.url,
-    userAgent: request.headers.get('user-agent'),
-    contentType: request.headers.get('content-type'),
-    contentLength: request.headers.get('content-length'),
-    origin: request.headers.get('origin'),
-    referer: request.headers.get('referer'),
+    userAgent: request.headers.get("user-agent"),
+    contentType: request.headers.get("content-type"),
+    contentLength: request.headers.get("content-length"),
+    origin: request.headers.get("origin"),
+    referer: request.headers.get("referer"),
   });
 
   // Log ALL headers
@@ -44,8 +46,8 @@ export async function GET(request: NextRequest) {
     // 🔍 RAW BODY ANALYSIS 🔍
     logger.info("🔍 ANALYZING REQUEST BODY", {
       requestId,
-      contentType: request.headers.get('content-type'),
-      contentLength: request.headers.get('content-length'),
+      contentType: request.headers.get("content-type"),
+      contentLength: request.headers.get("content-length"),
       hasBody: request.body !== null,
     });
 
@@ -58,23 +60,24 @@ export async function GET(request: NextRequest) {
         bodyLength: rawBodyText.length,
         bodyPreview: rawBodyText.substring(0, 500), // First 500 chars
         isEmpty: rawBodyText.trim().length === 0,
-        startsWithBrace: rawBodyText.trim().startsWith('{'),
-        startsWithBracket: rawBodyText.trim().startsWith('['),
-        containsNewlines: rawBodyText.includes('\n'),
-        containsTabs: rawBodyText.includes('\t'),
+        startsWithBrace: rawBodyText.trim().startsWith("{"),
+        startsWithBracket: rawBodyText.trim().startsWith("["),
+        containsNewlines: rawBodyText.includes("\n"),
+        containsTabs: rawBodyText.includes("\t"),
       });
     } catch (textError) {
       logger.error("❌ FAILED TO READ RAW BODY TEXT", {
         requestId,
-        error: textError instanceof Error ? textError.message : String(textError),
+        error:
+          textError instanceof Error ? textError.message : String(textError),
       });
-      rawBodyText = '';
+      rawBodyText = "";
     }
 
     // Vapi: Read JSON body directly for better performance and proper handling
     let requestBody: any = null;
     let bodyJson = null;
-    let parseMethod = 'unknown';
+    let parseMethod = "unknown";
 
     if (rawBodyText.trim().length > 0) {
       try {
@@ -82,12 +85,11 @@ export async function GET(request: NextRequest) {
         logger.debug("🔄 ATTEMPTING JSON PARSE", {
           requestId,
           bodyLength: rawBodyText.length,
-          contentType: request.headers.get('content-type'),
+          contentType: request.headers.get("content-type"),
         });
 
         requestBody = JSON.parse(rawBodyText);
         bodyJson = requestBody;
-        parseMethod = 'direct-json';
 
         logger.info("✅ JSON PARSE SUCCESS", {
           requestId,
@@ -101,7 +103,8 @@ export async function GET(request: NextRequest) {
       } catch (jsonError) {
         logger.warn("⚠️ DIRECT JSON PARSE FAILED", {
           requestId,
-          error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+          error:
+            jsonError instanceof Error ? jsonError.message : String(jsonError),
           attemptingTextFallback: true,
         });
 
@@ -109,7 +112,7 @@ export async function GET(request: NextRequest) {
           // If JSON parsing fails, we already have the text
           requestBody = rawBodyText;
           bodyJson = null;
-          parseMethod = 'raw-text';
+          parseMethod = "raw-text";
 
           logger.info("📝 FALLBACK TO RAW TEXT", {
             requestId,
@@ -119,11 +122,14 @@ export async function GET(request: NextRequest) {
         } catch (textError) {
           logger.error("❌ TEXT FALLBACK ALSO FAILED", {
             requestId,
-            error: textError instanceof Error ? textError.message : String(textError),
+            error:
+              textError instanceof Error
+                ? textError.message
+                : String(textError),
           });
           requestBody = null;
           bodyJson = null;
-          parseMethod = 'failed';
+          parseMethod = "failed";
         }
       }
     } else {
@@ -133,7 +139,7 @@ export async function GET(request: NextRequest) {
       });
       requestBody = null;
       bodyJson = null;
-      parseMethod = 'empty';
+      parseMethod = "empty";
     }
 
     logger.info("📊 REQUEST BODY SUMMARY", {
@@ -143,7 +149,7 @@ export async function GET(request: NextRequest) {
       hasJson: bodyJson !== null,
       bodyType: typeof requestBody,
       isArray: Array.isArray(requestBody),
-      contentLength: request.headers.get('content-length'),
+      contentLength: request.headers.get("content-length"),
       actualLength: rawBodyText?.length || 0,
     });
 
@@ -154,13 +160,16 @@ export async function GET(request: NextRequest) {
       hasMessage: !!bodyJson?.message,
       hasToolCallList: !!bodyJson?.message?.toolCallList,
       toolCallListLength: bodyJson?.message?.toolCallList?.length || 0,
-      firstToolCall: bodyJson?.message?.toolCallList?.[0] ? {
-        id: bodyJson.message.toolCallList[0].id,
-        type: bodyJson.message.toolCallList[0].type,
-        functionName: bodyJson.message.toolCallList[0].function?.name,
-        hasArguments: !!bodyJson.message.toolCallList[0].arguments,
-        hasParameters: !!bodyJson.message.toolCallList[0].function?.parameters,
-      } : null,
+      firstToolCall: bodyJson?.message?.toolCallList?.[0]
+        ? {
+            id: bodyJson.message.toolCallList[0].id,
+            type: bodyJson.message.toolCallList[0].type,
+            functionName: bodyJson.message.toolCallList[0].function?.name,
+            hasArguments: !!bodyJson.message.toolCallList[0].arguments,
+            hasParameters:
+              !!bodyJson.message.toolCallList[0].function?.parameters,
+          }
+        : null,
     });
 
     // Extract from Vapi tool call - simplified to always use toolCallList[0]
@@ -197,7 +206,7 @@ export async function GET(request: NextRequest) {
     logger.info("📋 PROCESSING QUERY PARAMETERS", {
       requestId,
       isVapiRequest,
-      toolCallId: toolCallId || 'none',
+      toolCallId: toolCallId || "none",
       hasVapiArgs: !!vapiArgs && Object.keys(vapiArgs).length > 0,
     });
 
@@ -238,14 +247,15 @@ export async function GET(request: NextRequest) {
           if (decodedMessage.toolCallList && decodedMessage.toolCallList[0]) {
             const toolCall = decodedMessage.toolCallList[0];
             toolCallId = toolCall.id;
-            vapiArgs = toolCall.arguments || toolCall.function?.parameters || {};
+            vapiArgs =
+              toolCall.arguments || toolCall.function?.parameters || {};
 
             logger.info("✅ VAPI DETECTED FROM QUERY PARAM", {
               requestId,
               toolCallId: toolCallId,
               functionName: toolCall.function?.name,
               arguments: vapiArgs,
-              source: 'query-param-message',
+              source: "query-param-message",
             });
           }
         } catch (e) {
@@ -286,7 +296,7 @@ export async function GET(request: NextRequest) {
       query: finalQuery,
       limit: finalLimit,
       cursor: finalCursor,
-      toolCallId: toolCallId || 'none',
+      toolCallId: toolCallId || "none",
       isVapiRequest,
       source: toolCallId === "query-params-fallback" ? "query-params" : "vapi",
     });
@@ -513,7 +523,7 @@ export async function GET(request: NextRequest) {
           logger.info("✅ ERROR RESPONSE: TOOL CALL ID EXTRACTED", {
             requestId,
             toolCallId: errorToolCallId,
-            source: 'request-body',
+            source: "request-body",
           });
         } else {
           logger.info("❌ ERROR RESPONSE: NO TOOL CALL ID FOUND", {
@@ -530,7 +540,8 @@ export async function GET(request: NextRequest) {
     } catch (parseError) {
       logger.warn("⚠️ ERROR RESPONSE: BODY PARSE FAILED", {
         requestId,
-        parseError: parseError instanceof Error ? parseError.message : String(parseError),
+        parseError:
+          parseError instanceof Error ? parseError.message : String(parseError),
         fallbackToolCallId: errorToolCallId,
       });
     }
@@ -571,39 +582,197 @@ export async function GET(request: NextRequest) {
 // POST method for advanced search with multiple filters
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  logger.info("🔍 Inventory search API called", { method: "POST" });
+
+  // 🚨 COMPREHENSIVE REQUEST LOGGING FOR POST 🚨
+  const requestId = `req_${Date.now()}_${Math.random()
+    .toString(36)
+    .substr(2, 9)}`;
+
+  logger.info("🚨 === POST REQUEST START ===", {
+    requestId,
+    timestamp: new Date().toISOString(),
+    method: request.method,
+    url: request.url,
+    userAgent: request.headers.get("user-agent"),
+    contentType: request.headers.get("content-type"),
+    contentLength: request.headers.get("content-length"),
+    origin: request.headers.get("origin"),
+    referer: request.headers.get("referer"),
+  });
+
+  // Log ALL headers
+  const allHeaders = Object.fromEntries(request.headers.entries());
+  logger.info("📋 POST REQUEST HEADERS", {
+    requestId,
+    headers: allHeaders,
+    headerCount: Object.keys(allHeaders).length,
+  });
+
+  // Log URL details
+  const url = new URL(request.url);
+  logger.info("🔗 POST REQUEST URL DETAILS", {
+    requestId,
+    fullUrl: request.url,
+    pathname: url.pathname,
+    search: url.search,
+    searchParams: Object.fromEntries(url.searchParams.entries()),
+    queryParamCount: url.searchParams.size,
+  });
 
   try {
-    // Try to read as JSON first (most common case for VAPI)
-    let requestBody: any = null;
-    let bodyJson = null;
+    // 🔍 RAW BODY ANALYSIS FOR POST 🔍
+    logger.info("🔍 ANALYZING POST REQUEST BODY", {
+      requestId,
+      contentType: request.headers.get("content-type"),
+      contentLength: request.headers.get("content-length"),
+      hasBody: request.body !== null,
+    });
 
+    // First, try to get raw body as text for complete analysis
+    let rawBodyText: string;
     try {
-      requestBody = await request.json();
-      bodyJson = requestBody;
-      logger.debug("📄 JSON body received", {
-        bodyKeys: Object.keys(requestBody),
+      rawBodyText = await request.text();
+      logger.info("📄 RAW POST BODY TEXT CAPTURED", {
+        requestId,
+        bodyLength: rawBodyText.length,
+        bodyPreview: rawBodyText.substring(0, 500), // First 500 chars
+        isEmpty: rawBodyText.trim().length === 0,
+        startsWithBrace: rawBodyText.trim().startsWith("{"),
+        startsWithBracket: rawBodyText.trim().startsWith("["),
+        containsNewlines: rawBodyText.includes("\n"),
+        containsTabs: rawBodyText.includes("\t"),
       });
-    } catch (e) {
-      // If JSON parsing fails, fall back to text
-      logger.debug("📝 JSON parsing failed, trying text fallback");
-      const bodyText = await request.text();
-      logger.debug("📄 Text body received", { bodyLength: bodyText.length });
-
-      try {
-        requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
-        bodyJson = requestBody;
-        logger.debug("🔧 Parsed JSON from text", {
-          bodyKeys: requestBody ? Object.keys(requestBody) : [],
-        });
-      } catch (parseError) {
-        requestBody = bodyText; // Keep as string if JSON parsing fails
-        bodyJson = null;
-        logger.debug("📝 Using raw body text", { bodyLength: bodyText.length });
-      }
+    } catch (textError) {
+      logger.error("❌ FAILED TO READ RAW POST BODY TEXT", {
+        requestId,
+        error:
+          textError instanceof Error ? textError.message : String(textError),
+      });
+      rawBodyText = "";
     }
 
-    logger.debug("📄 Raw request body received", { body: requestBody });
+    // ✅ CONTENT TYPE VALIDATION FOR JSON PARSING ✅
+    const contentType = request.headers.get("content-type") || "";
+    const isJsonContentType =
+      contentType.toLowerCase().includes("application/json") ||
+      contentType.toLowerCase().includes("text/json") ||
+      contentType.toLowerCase().includes("application/javascript");
+
+    logger.info("🎯 CONTENT TYPE ANALYSIS FOR POST", {
+      requestId,
+      contentType: contentType,
+      isJsonContentType: isJsonContentType,
+      normalizedContentType: contentType.toLowerCase(),
+      willAttemptJsonParse: rawBodyText.trim().length > 0 && isJsonContentType,
+      contentTypeContainsJson: contentType.toLowerCase().includes("json"),
+    });
+
+    // Vapi: Read JSON body directly for better performance and proper handling
+    let requestBody: any = null;
+    let bodyJson = null;
+    let parseMethod = "unknown";
+
+    if (rawBodyText.trim().length > 0) {
+      if (isJsonContentType) {
+        // ✅ Content type indicates JSON - attempt JSON parsing
+        try {
+          logger.debug(
+            "🔄 ATTEMPTING JSON PARSE ON POST (VALID CONTENT TYPE)",
+            {
+              requestId,
+              bodyLength: rawBodyText.length,
+              contentType: contentType,
+              isJsonContentType: true,
+            }
+          );
+
+          requestBody = JSON.parse(rawBodyText);
+          bodyJson = requestBody;
+          parseMethod = "json-content-type";
+
+          logger.info("✅ POST JSON PARSE SUCCESS (VALID CONTENT TYPE)", {
+            requestId,
+            bodyType: typeof requestBody,
+            isArray: Array.isArray(requestBody),
+            topLevelKeys: Object.keys(requestBody),
+            hasMessage: !!requestBody.message,
+            hasToolCallList: !!requestBody.message?.toolCallList,
+            toolCallCount: requestBody.message?.toolCallList?.length || 0,
+            contentType: contentType,
+          });
+        } catch (jsonError) {
+          logger.warn("⚠️ JSON PARSE FAILED WITH VALID CONTENT TYPE", {
+            requestId,
+            error:
+              jsonError instanceof Error
+                ? jsonError.message
+                : String(jsonError),
+            contentType: contentType,
+            bodyPreview: rawBodyText.substring(0, 200),
+            attemptingTextFallback: true,
+          });
+
+          // Even though content type says JSON, parsing failed - keep as text
+          requestBody = rawBodyText;
+          bodyJson = null;
+          parseMethod = "json-content-type-but-invalid";
+        }
+      } else {
+        // ⚠️ Content type does NOT indicate JSON - keep as raw text
+        logger.warn("⚠️ NON-JSON CONTENT TYPE - SKIPPING JSON PARSE", {
+          requestId,
+          contentType: contentType,
+          isJsonContentType: false,
+          bodyLength: rawBodyText.length,
+          bodyPreview: rawBodyText.substring(0, 200),
+          keepingAsRawText: true,
+        });
+
+        requestBody = rawBodyText;
+        bodyJson = null;
+        parseMethod = "non-json-content-type";
+      }
+    } else {
+      logger.info("📭 EMPTY POST REQUEST BODY", {
+        requestId,
+        note: "No body content detected",
+        contentType: contentType,
+        isJsonContentType: isJsonContentType,
+      });
+      requestBody = null;
+      bodyJson = null;
+      parseMethod = "empty";
+    }
+
+    logger.info("📊 POST REQUEST BODY SUMMARY", {
+      requestId,
+      parseMethod,
+      hasBody: requestBody !== null,
+      hasJson: bodyJson !== null,
+      bodyType: typeof requestBody,
+      isArray: Array.isArray(requestBody),
+      contentLength: request.headers.get("content-length"),
+      actualLength: rawBodyText?.length || 0,
+    });
+
+    // 🔍 VAPI DETECTION ANALYSIS FOR POST 🔍
+    logger.info("🔍 ANALYZING POST FOR VAPI REQUEST", {
+      requestId,
+      hasJsonBody: !!bodyJson,
+      hasMessage: !!bodyJson?.message,
+      hasToolCallList: !!bodyJson?.message?.toolCallList,
+      toolCallListLength: bodyJson?.message?.toolCallList?.length || 0,
+      firstToolCall: bodyJson?.message?.toolCallList?.[0]
+        ? {
+            id: bodyJson.message.toolCallList[0].id,
+            type: bodyJson.message.toolCallList[0].type,
+            functionName: bodyJson.message.toolCallList[0].function?.name,
+            hasArguments: !!bodyJson.message.toolCallList[0].arguments,
+            hasParameters:
+              !!bodyJson.message.toolCallList[0].function?.parameters,
+          }
+        : null,
+    });
 
     // Detect Vapi tool-call wrapper per docs: https://docs.vapi.ai/tools/custom-tools#request-format-understanding-the-tool-call-request
     const vapiMessage = requestBody?.message;
@@ -615,12 +784,22 @@ export async function POST(request: NextRequest) {
       vapiToolCall?.arguments || vapiToolCall?.function?.parameters || {};
 
     if (isVapi) {
-      logger.info("🤖 VAPI POST Request Detected", {
+      logger.info("🤖 VAPI POST REQUEST CONFIRMED", {
+        requestId,
         toolCallId: vapiToolCall.id,
         functionName: vapiToolCall.function?.name,
         arguments: vapiArgs,
+        argumentsKeys: Object.keys(vapiArgs),
         vapiMessageId: vapiMessage?.id,
         toolCallCount: vapiMessage?.toolCallList?.length || 0,
+        fullToolCall: vapiToolCall,
+      });
+    } else {
+      logger.info("❌ POST REQUEST NOT VAPI", {
+        requestId,
+        reason: bodyJson ? "No toolCallList found in message" : "No JSON body",
+        hasJsonBody: !!bodyJson,
+        hasMessage: !!bodyJson?.message,
       });
     }
 
@@ -630,6 +809,21 @@ export async function POST(request: NextRequest) {
     const limit = Math.min(Number(body.limit ?? 5), 50);
     const cursor = body.cursor ?? null;
 
+    // 🎯 FINAL PARAMETER RESOLUTION FOR POST 🎯
+    const finalQuery = q;
+    const finalLimit = limit;
+    const finalCursor = cursor;
+
+    logger.info("🎯 POST FINAL SEARCH PARAMETERS", {
+      requestId,
+      query: finalQuery,
+      limit: finalLimit,
+      cursor: finalCursor,
+      toolCallId: toolCallId || "none",
+      isVapiRequest,
+      source: toolCallId === "query-params-fallback" ? "query-params" : "vapi",
+    });
+
     logger.debug("🔧 Processing search parameters", {
       query: q,
       limit,
@@ -637,10 +831,27 @@ export async function POST(request: NextRequest) {
       isVapi,
     });
 
+    logger.debug("🔄 EXECUTING SHOPIFY REQUEST FOR POST", {
+      requestId,
+      query: finalQuery,
+      limit: finalLimit,
+      cursor: finalCursor,
+      isVapiRequest,
+    });
+
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
-      query: q,
-      first: limit,
-      after: cursor,
+      query: finalQuery,
+      first: finalLimit,
+      after: finalCursor,
+    });
+
+    logger.info("🏪 SHOPIFY RESPONSE RECEIVED FOR POST", {
+      requestId,
+      hasData: !!response?.data,
+      hasProducts: !!response?.data?.products,
+      productsCount: response?.data?.products?.edges?.length || 0,
+      hasNextPage: response?.data?.products?.pageInfo?.hasNextPage,
+      endCursor: response?.data?.products?.pageInfo?.endCursor,
     });
 
     if (!response?.data?.products) {
@@ -699,7 +910,8 @@ export async function POST(request: NextRequest) {
       const responseData = { results: [{ toolCallId, result: payload }] };
 
       const responseTime = Date.now() - startTime;
-      logger.info("✅ VAPI POST Response", {
+      logger.info("🎉 === POST REQUEST COMPLETED SUCCESSFULLY ===", {
+        requestId,
         method: request.method,
         url: request.url,
         statusCode: 200,
@@ -708,6 +920,8 @@ export async function POST(request: NextRequest) {
         toolCallId: toolCallId,
         isVapiRequest: true,
         responseFormat: "vapi",
+        resultSize: JSON.stringify(payload).length,
+        processingTimeMs: responseTime,
       });
 
       return NextResponse.json(responseData, {
@@ -716,7 +930,8 @@ export async function POST(request: NextRequest) {
     }
 
     const responseTime = Date.now() - startTime;
-    logger.info("✅ POST Response", {
+    logger.info("🎉 === POST REQUEST COMPLETED SUCCESSFULLY ===", {
+      requestId,
       method: request.method,
       url: request.url,
       statusCode: 200,
@@ -724,6 +939,7 @@ export async function POST(request: NextRequest) {
       productsFound: transformedProducts.length,
       isVapiRequest: false,
       responseFormat: "standard",
+      processingTimeMs: responseTime,
     });
 
     return NextResponse.json(payload, {
