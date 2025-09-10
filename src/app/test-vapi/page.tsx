@@ -72,6 +72,34 @@ export default function TestVapiPage() {
     setMessageJson(JSON.stringify(example, null, 2));
   };
 
+  const loadSimpleExample = () => {
+    setMessageJson(`{
+  "arguments": {
+    "q": "iphone",
+    "limit": 3
+  },
+  "id": "toolu_simple_456"
+}`);
+  };
+
+  const testRegularParams = () => {
+    setLoading(true);
+    setError("");
+    setResponse("");
+
+    // Test with regular query parameters (simulating Vapi headers)
+    const url = `/api/inventory/search?q=iphone&limit=2`;
+    fetch(url, {
+      headers: {
+        "User-Agent": "Vapi/1.0",
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => setResponse(JSON.stringify(data, null, 2)))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -121,6 +149,19 @@ export default function TestVapiPage() {
               className="px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               Load Example
+            </button>
+            <button
+              onClick={loadSimpleExample}
+              className="px-4 py-2 bg-purple-600 text-white font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              Load Simple
+            </button>
+            <button
+              onClick={testRegularParams}
+              disabled={loading}
+              className="px-4 py-2 bg-orange-600 text-white font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Test Headers
             </button>
           </div>
         </div>
@@ -193,7 +234,13 @@ export default function TestVapiPage() {
                     Use &ldquo;Format JSON&rdquo; to pretty-print your JSON
                   </li>
                   <li>
-                    Use &ldquo;Load Example&rdquo; to see a sample tool call
+                    Use &ldquo;Load Example&rdquo; for full toolCallList format
+                  </li>
+                  <li>
+                    Use &ldquo;Load Simple&rdquo; for direct arguments format
+                  </li>
+                  <li>
+                    Use &ldquo;Test Headers&rdquo; to test User-Agent detection
                   </li>
                 </ol>
               </div>

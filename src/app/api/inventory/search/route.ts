@@ -5,11 +5,23 @@ import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    // Detect Vapi GET (URL-encoded JSON in ?message=)
+    // Detect Vapi GET requests - check multiple possible formats
     const vapiMessageParam = searchParams.get("message");
+    const vapiToolCallParam = searchParams.get("toolCall");
     let isVapi = false;
     let vapiArgs: any = {};
     let toolCallId: string | undefined;
+
+    // Debug logging (remove in production)
+    console.log("Vapi Detection Debug:", {
+      userAgent: request.headers.get("user-agent"),
+      referer: request.headers.get("referer"),
+      hasMessage: !!vapiMessageParam,
+      hasToolCall: !!vapiToolCallParam,
+      allParams: Object.fromEntries(searchParams.entries()),
+    });
+
+    // Method 1: Full message parameter with toolCallList
     if (vapiMessageParam) {
       try {
         const parsed = JSON.parse(vapiMessageParam);
@@ -22,6 +34,56 @@ export async function GET(request: NextRequest) {
           vapiArgs = call.arguments || call.function?.parameters || {};
         }
       } catch (_) {}
+    }
+
+    // Method 2: Direct toolCall parameter
+    if (!isVapi && vapiToolCallParam) {
+      try {
+        const parsed = JSON.parse(vapiToolCallParam);
+        if (parsed?.arguments || parsed?.function?.parameters) {
+          isVapi = true;
+          toolCallId = parsed.id;
+          vapiArgs = parsed.arguments || parsed.function?.parameters || {};
+        }
+      } catch (_) {}
+    }
+
+    // Method 3: Check for Vapi-specific headers or User-Agent
+    if (!isVapi) {
+      const userAgent = request.headers.get("user-agent") || "";
+      const referer = request.headers.get("referer") || "";
+      if (userAgent.includes("Vapi") || referer.includes("vapi.ai")) {
+        isVapi = true;
+        // Fallback: use regular query params as arguments
+        vapiArgs = {
+          q: searchParams.get("q") || "",
+          limit: searchParams.get("limit") || "5",
+          cursor: searchParams.get("cursor") || null,
+        };
+        toolCallId = "vapi-fallback-" + Date.now();
+      }
+    }
+
+    // Method 4: Check for any parameter that looks like Vapi data
+    if (!isVapi) {
+      for (const [key, value] of searchParams.entries()) {
+        if (
+          key.includes("vapi") ||
+          key.includes("tool") ||
+          value.includes("toolCall")
+        ) {
+          try {
+            const parsed = JSON.parse(value);
+            if (parsed?.arguments || parsed?.toolCallList) {
+              isVapi = true;
+              const call = parsed.toolCallList?.[0] || parsed;
+              toolCallId = call.id || "vapi-detected-" + Date.now();
+              vapiArgs = call.arguments || call.function?.parameters || {};
+              break;
+            }
+          } catch (_) {}
+        }
+      }
     }
 
     // Inputs (Vapi: q, limit defaults to 5, optional cursor)
@@ -124,6 +186,7 @@ export async function GET(request: NextRequest) {
     );
 
     // If Vapi, return a structured JSON string with all product data for parsing
+    console.log("Vapi Detection Result:", { isVapi, toolCallId, vapiArgs });
     if (isVapi) {
       const resultData = {
         query: query,
