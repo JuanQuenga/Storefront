@@ -92,6 +92,29 @@ export default function DebugLogsPage() {
               >
                 🧪 Generate Test Logs
               </button>
+              <button
+                onClick={() => {
+                  // Find the most recent request log with body
+                  const requestLog = logs.find(
+                    (log) =>
+                      log.meta?.body &&
+                      (log.message.includes("Raw incoming") ||
+                        log.message.includes("Raw incoming POST"))
+                  );
+
+                  if (requestLog && requestLog.meta?.body) {
+                    navigator.clipboard
+                      .writeText(JSON.stringify(requestLog.meta.body, null, 2))
+                      .then(() => alert("Request body copied to clipboard!"))
+                      .catch(() => alert("Failed to copy to clipboard"));
+                  } else {
+                    alert("No request body found in recent logs");
+                  }
+                }}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium transition-colors"
+              >
+                📋 Copy Request Body
+              </button>
             </div>
           </div>
 

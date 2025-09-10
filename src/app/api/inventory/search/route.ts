@@ -109,6 +109,14 @@ export async function GET(request: NextRequest) {
       }),
     };
 
+    // Log the response
+    logger.info("API response", {
+      query: finalQuery,
+      totalFound: resultData.totalFound,
+      productsCount: resultData.products.length,
+      response: resultData,
+    });
+
     return NextResponse.json(resultData, {
       headers: corsHeaders(request.headers.get("origin") || undefined),
     });
@@ -247,6 +255,14 @@ export async function POST(request: NextRequest) {
         totalCount: transformedProducts.length,
       },
     };
+
+    // Log the response
+    logger.info("API POST response", {
+      query: q,
+      totalFound: payload.totalFound,
+      productsCount: payload.products.length,
+      response: payload,
+    });
 
     return NextResponse.json(payload, {
       headers: corsHeaders(request.headers.get("origin") || undefined),
