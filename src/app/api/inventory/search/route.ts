@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getShopifyClient, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
-import { ProductSearchQuery, ProductSearchQueryVariables } from "@/generated/graphql";
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Execute GraphQL query
-    const response = await getShopifyClient().request(PRODUCT_SEARCH_QUERY, {
+    const response = await (getShopifyClient() as any).request(PRODUCT_SEARCH_QUERY, {
       query: searchQuery,
       first: limit,
       after: cursor || null,
@@ -53,7 +52,7 @@ export async function GET(request: NextRequest) {
     const { products } = response.data;
 
     // Transform the response to a more user-friendly format
-    const transformedProducts = products.edges.map(({ node }) => ({
+    const transformedProducts = products.edges.map(({ node }: { node: any }) => ({
       id: node.id,
       title: node.title,
       handle: node.handle,
@@ -66,7 +65,7 @@ export async function GET(request: NextRequest) {
         max: node.priceRange.maxVariantPrice.amount,
         currency: node.priceRange.minVariantPrice.currencyCode,
       },
-      variants: node.variants.edges.map(({ node: variant }) => ({
+      variants: node.variants.edges.map(({ node: variant }: { node: any }) => ({
         id: variant.id,
         title: variant.title,
         sku: variant.sku,
@@ -76,7 +75,7 @@ export async function GET(request: NextRequest) {
         availableForSale: variant.availableForSale,
         options: variant.selectedOptions,
       })),
-      images: node.images.edges.map(({ node: image }) => ({
+      images: node.images.edges.map(({ node: image }: { node: any }) => ({
         url: image.url,
         altText: image.altText,
       })),
@@ -132,7 +131,7 @@ export async function POST(request: NextRequest) {
       searchQuery = `${query} ${filterParts.join(" ")}`.trim();
     }
 
-    const response = await getShopifyClient().request(PRODUCT_SEARCH_QUERY, {
+    const response = await (getShopifyClient() as any).request(PRODUCT_SEARCH_QUERY, {
       query: searchQuery,
       first: limit,
       after: cursor || null,
@@ -147,7 +146,7 @@ export async function POST(request: NextRequest) {
 
     const { products } = response.data;
 
-    const transformedProducts = products.edges.map(({ node }) => ({
+    const transformedProducts = products.edges.map(({ node }: { node: any }) => ({
       id: node.id,
       title: node.title,
       handle: node.handle,
@@ -160,7 +159,7 @@ export async function POST(request: NextRequest) {
         max: node.priceRange.maxVariantPrice.amount,
         currency: node.priceRange.minVariantPrice.currencyCode,
       },
-      variants: node.variants.edges.map(({ node: variant }) => ({
+      variants: node.variants.edges.map(({ node: variant }: { node: any }) => ({
         id: variant.id,
         title: variant.title,
         sku: variant.sku,
@@ -170,7 +169,7 @@ export async function POST(request: NextRequest) {
         availableForSale: variant.availableForSale,
         options: variant.selectedOptions,
       })),
-      images: node.images.edges.map(({ node: image }) => ({
+      images: node.images.edges.map(({ node: image }: { node: any }) => ({
         url: image.url,
         altText: image.altText,
       })),

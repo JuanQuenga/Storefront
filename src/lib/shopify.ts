@@ -1,5 +1,4 @@
 import { createStorefrontApiClient } from "@shopify/storefront-api-client";
-import gql from "graphql-tag";
 
 // Initialize the Storefront API client
 export const shopifyClient =
@@ -22,8 +21,9 @@ export function getShopifyClient() {
   return shopifyClient;
 }
 
-// GraphQL queries using gql template literals
-export const PRODUCT_SEARCH_QUERY = gql`
+// GraphQL queries (keeping as strings for Shopify client compatibility)
+// These can be validated against the generated types
+export const PRODUCT_SEARCH_QUERY = `
   query ProductSearch($query: String!, $first: Int!, $after: String) {
     products(query: $query, first: $first, after: $after) {
       edges {
@@ -86,7 +86,7 @@ export const PRODUCT_SEARCH_QUERY = gql`
   }
 `;
 
-export const PRODUCT_BY_ID_QUERY = gql`
+export const PRODUCT_BY_ID_QUERY = `
   query ProductById($id: ID!) {
     product(id: $id) {
       id
@@ -154,7 +154,7 @@ export const PRODUCT_BY_ID_QUERY = gql`
   }
 `;
 
-export const INVENTORY_QUERY = gql`
+export const INVENTORY_QUERY = `
   query InventoryItems($ids: [ID!]!) {
     nodes(ids: $ids) {
       ... on ProductVariant {
@@ -176,7 +176,7 @@ export const INVENTORY_QUERY = gql`
   }
 `;
 
-export const COLLECTIONS_QUERY = gql`
+export const COLLECTIONS_QUERY = `
   query Collections($first: Int!, $after: String) {
     collections(first: $first, after: $after) {
       edges {
