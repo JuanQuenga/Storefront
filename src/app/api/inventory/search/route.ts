@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
           id: node.id,
           title: node.title,
           handle: node.handle,
-          description: node.description,
+          description: node.descriptionHtml,
           productType: node.productType,
           vendor: node.vendor,
           priceRange: {
@@ -82,31 +82,30 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    // Return standard JSON response
+    // Return customer-friendly format
     const resultData = {
       query: finalQuery,
       totalFound: transformedProducts.length,
-      products: transformedProducts.slice(0, finalLimit).map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        description: p.description || "No description available",
-        handle: p.handle,
-        productType: p.productType,
-        vendor: p.vendor,
-        price: p.priceRange.min,
-        currency: p.priceRange.currency,
-        inStock: p.inStock,
-        imageUrl: p.images[0]?.url || null,
-        variants: p.variants.map((v: any) => ({
-          id: v.id,
-          title: v.title,
-          sku: v.sku,
-          price: v.price,
-          compareAtPrice: v.compareAtPrice,
-          inventoryQuantity: v.inventoryQuantity,
-          availableForSale: v.availableForSale,
-        })),
-      })),
+      products: transformedProducts.slice(0, finalLimit).map((p: any) => {
+        // Extract condition from descriptionHtml
+        let condition = "Unknown";
+        if (p.descriptionHtml) {
+          // Look for table rows with condition information
+          const conditionMatch = p.descriptionHtml.match(
+            /<tr[^>]*>.*?<td[^>]*>.*?condition.*?<\/td>.*?<td[^>]*>(.*?)<\/td>.*?<\/tr>/i
+          );
+          if (conditionMatch) {
+            condition = conditionMatch[1].replace(/<[^>]*>/g, "").trim();
+          }
+        }
+
+        return {
+          name: p.title,
+          price: `$${p.priceRange.min}`,
+          condition: condition,
+          inStock: p.inStock ? "Yes" : "No",
+        };
+      }),
     };
 
     return NextResponse.json(resultData, {
@@ -190,7 +189,7 @@ export async function POST(request: NextRequest) {
         id: node.id,
         title: node.title,
         handle: node.handle,
-        description: node.description,
+        description: node.descriptionHtml,
         productType: node.productType,
         vendor: node.vendor,
         priceRange: {
@@ -220,27 +219,26 @@ export async function POST(request: NextRequest) {
     const payload = {
       query: q,
       totalFound: transformedProducts.length,
-      products: transformedProducts.map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        description: p.description || "No description available",
-        handle: p.handle,
-        productType: p.productType,
-        vendor: p.vendor,
-        price: p.priceRange.min,
-        currency: p.priceRange.currency,
-        inStock: p.inStock,
-        imageUrl: p.images[0]?.url || null,
-        variants: p.variants.map((v: any) => ({
-          id: v.id,
-          title: v.title,
-          sku: v.sku,
-          price: v.price,
-          compareAtPrice: v.compareAtPrice,
-          inventoryQuantity: v.inventoryQuantity,
-          availableForSale: v.availableForSale,
-        })),
-      })),
+      products: transformedProducts.map((p: any) => {
+        // Extract condition from descriptionHtml
+        let condition = "Unknown";
+        if (p.descriptionHtml) {
+          // Look for table rows with condition information
+          const conditionMatch = p.descriptionHtml.match(
+            /<tr[^>]*>.*?<td[^>]*>.*?condition.*?<\/td>.*?<td[^>]*>(.*?)<\/td>.*?<\/tr>/i
+          );
+          if (conditionMatch) {
+            condition = conditionMatch[1].replace(/<[^>]*>/g, "").trim();
+          }
+        }
+
+        return {
+          name: p.title,
+          price: `$${p.priceRange.min}`,
+          condition: condition,
+          inStock: p.inStock ? "Yes" : "No",
+        };
+      }),
       pagination: {
         hasNextPage: products.pageInfo.hasNextPage,
         endCursor: products.pageInfo.endCursor,
