@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corsHeaders } from "@/lib/cors";
 import { storefrontRequest, INVENTORY_QUERY } from "@/lib/shopify";
+import { logger } from "@/lib/server-logger";
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  logger.info("Inventory check API called", { method: "GET" });
+
   try {
     const { searchParams } = new URL(request.url);
     const ids = searchParams.get("ids");
 
     if (!ids) {
+      logger.warn("Missing variant IDs in request", { url: request.url });
       return NextResponse.json(
         { error: "Variant IDs are required" },
         { status: 400 }
@@ -21,6 +26,7 @@ export async function GET(request: NextRequest) {
       .filter((id) => id);
 
     if (variantIds.length === 0) {
+      logger.warn("No valid variant IDs provided", { ids });
       return NextResponse.json(
         { error: "At least one valid variant ID is required" },
         { status: 400 }
@@ -32,11 +38,15 @@ export async function GET(request: NextRequest) {
       id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id}`
     );
 
+    logger.debug("Making Shopify inventory request", {
+      variantCount: formattedIds.length,
+    });
     const response = await storefrontRequest(INVENTORY_QUERY, {
       ids: formattedIds,
     });
 
     if (!response?.data?.nodes) {
+      logger.error("Failed to fetch inventory data from Shopify", { response });
       return NextResponse.json(
         { error: "Failed to fetch inventory data" },
         { status: 500 }
@@ -87,7 +97,10 @@ export async function GET(request: NextRequest) {
       { headers: corsHeaders(request.headers.get("origin") || undefined) }
     );
   } catch (error) {
-    console.error("Error checking inventory:", error);
+    logger.error("Error checking inventory", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       {

@@ -1,70 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corsHeaders } from "@/lib/cors";
 import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
-
-// Debug logging variables (only used in development)
+import { logger } from "@/lib/server-logger";
 
 export async function GET(request: NextRequest) {
-  const requestId = `req_${Date.now()}_${Math.random()
-    .toString(36)
-    .substr(2, 9)}`;
-
-  // Log incoming request (development only)
-  if (process.env.NODE_ENV === "development") {
-    try {
-      const debugModule = await import("@/app/debug-logs/page");
-      const headers: Record<string, string> = {};
-      request.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-
-      const logEntry = {
-        id: requestId,
-        timestamp: new Date().toISOString(),
-        method: request.method,
-        url: request.url,
-        headers,
-        body: null as any,
-      };
-
-      debugModule.requestLogs.unshift(logEntry);
-      if (debugModule.requestLogs.length > debugModule.MAX_LOGS) {
-        debugModule.requestLogs.splice(debugModule.MAX_LOGS);
-      }
-    } catch (e) {
-      // Debug page doesn't exist, skip logging
-    }
-  }
+  const startTime = Date.now();
+  logger.info("Inventory search API called", { method: "GET" });
 
   try {
     // Vapi: ALWAYS read JSON body per docs, but handle empty body gracefully
     const bodyText = await request.text();
+    logger.debug("Body text received", { bodyLength: bodyText.length });
 
-    // Update log with body content
-    if (process.env.NODE_ENV === "development") {
-      try {
-        const debugModule = await import("@/app/debug-logs/page");
-        const logEntry = debugModule.requestLogs.find(
-          (log: any) => log.id === requestId
-        );
-        if (logEntry) {
-          try {
-            logEntry.body = bodyText.trim() ? JSON.parse(bodyText) : null;
-          } catch (e) {
-            logEntry.body = bodyText; // Keep as string if JSON parsing fails
-          }
-        }
-      } catch (e) {
-        // Debug page doesn't exist, skip logging
-      }
+    // Log the HTTP request with body content
+    let requestBody: any = null;
+    try {
+      requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
+      logger.debug("Parsed request body", { body: requestBody });
+    } catch (e) {
+      requestBody = bodyText; // Keep as string if JSON parsing fails
+      logger.debug("Using raw body text", { body: requestBody });
     }
+
+    logger.info("HTTP Request", {
+      method: request.method,
+      url: request.url,
+      headers: Object.fromEntries(request.headers.entries()),
+      body: requestBody,
+    });
     let bodyJson = null;
 
     if (bodyText.trim()) {
       try {
         bodyJson = JSON.parse(bodyText);
       } catch (parseError) {
-        console.warn("Failed to parse request body as JSON:", parseError);
+        logger.warn("Failed to parse request body as JSON", {
+          error: parseError,
+        });
         // Continue with null bodyJson - will use query params as fallback
       }
     }
@@ -99,7 +71,7 @@ export async function GET(request: NextRequest) {
               toolCall.arguments || toolCall.function?.parameters || {};
           }
         } catch (e) {
-          console.warn("Failed to parse message query param:", e);
+          logger.warn("Failed to parse message query param", { error: e });
         }
       }
 
@@ -119,6 +91,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(String(vapiArgs.limit ?? 5)), 50);
     const cursor = vapiArgs.cursor || null;
 
+    logger.debug("Making Shopify request", { query, limit, cursor });
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
       query: query,
       first: limit,
@@ -126,6 +99,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response?.data?.products) {
+      logger.error("Failed to fetch products from Shopify", { response });
       const errorResult = JSON.stringify({ error: "Failed to fetch products" });
       return NextResponse.json(
         {
@@ -214,27 +188,26 @@ export async function GET(request: NextRequest) {
       results: [{ toolCallId: toolCallId || "unknown", result: serialized }],
     };
 
-    // Log successful response
-    if (process.env.NODE_ENV === "development") {
-      try {
-        const debugModule = await import("@/app/debug-logs/page");
-        const logEntry = debugModule.requestLogs.find(
-          (log: any) => log.id === requestId
-        );
-        if (logEntry) {
-          logEntry.response = responseData;
-          logEntry.status = 200;
-        }
-      } catch (e) {
-        // Debug page doesn't exist, skip logging
-      }
-    }
-
-    return NextResponse.json(responseData, {
+    const responseObj = NextResponse.json(responseData, {
       headers: corsHeaders(request.headers.get("origin") || undefined),
     });
+
+    // Log successful response
+    const responseTime = Date.now() - startTime;
+    logger.info("HTTP Response", {
+      method: request.method,
+      url: request.url,
+      statusCode: 200,
+      responseTime: `${responseTime}ms`,
+      productsFound: transformedProducts.length,
+    });
+
+    return responseObj;
   } catch (error) {
-    console.error("Error searching products:", error);
+    logger.error("Error searching products", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     // Extract toolCallId from request body for error response
     let errorToolCallId = "unknown";
     try {
@@ -252,28 +225,22 @@ export async function GET(request: NextRequest) {
       results: [{ toolCallId: errorToolCallId, result: errorResult }],
     };
 
-    // Log error response
-    if (process.env.NODE_ENV === "development") {
-      try {
-        const debugModule = await import("@/app/debug-logs/page");
-        const logEntry = debugModule.requestLogs.find(
-          (log: any) => log.id === requestId
-        );
-        if (logEntry) {
-          logEntry.response = errorResponseData;
-          logEntry.status = 500;
-          logEntry.error =
-            error instanceof Error ? error.message : String(error);
-        }
-      } catch (e) {
-        // Debug page doesn't exist, skip logging
-      }
-    }
-
-    return NextResponse.json(errorResponseData, {
+    const errorResponseObj = NextResponse.json(errorResponseData, {
       status: 500,
       headers: corsHeaders(request.headers.get("origin") || undefined),
     });
+
+    // Log error response
+    const responseTime = Date.now() - startTime;
+    logger.error("HTTP Response Error", {
+      method: request.method,
+      url: request.url,
+      statusCode: 500,
+      responseTime: `${responseTime}ms`,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return errorResponseObj;
   }
 }
 
