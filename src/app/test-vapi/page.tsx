@@ -184,13 +184,13 @@ export default function TestVapiPage() {
               <div className="mt-2 text-sm text-blue-700">
                 <ol className="list-decimal list-inside space-y-1">
                   <li>Enter your Vapi tool call JSON in the textarea above</li>
-                  <li>Click "Test API Call" to send the request</li>
+                  <li>Click &ldquo;Test API Call&rdquo; to send the request</li>
                   <li>
                     The response will show the human-readable string that Vapi
                     will speak
                   </li>
-                  <li>Use "Format JSON" to pretty-print your JSON</li>
-                  <li>Use "Load Example" to see a sample tool call</li>
+                  <li>Use &ldquo;Format JSON&rdquo; to pretty-print your JSON</li>
+                  <li>Use &ldquo;Load Example&rdquo; to see a sample tool call</li>
                 </ol>
               </div>
             </div>
