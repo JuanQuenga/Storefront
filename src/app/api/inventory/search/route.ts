@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
           name: p.title,
           price: `$${p.priceRange.min}`,
           condition: condition,
+          sku: p.variants[0]?.sku || "N/A",
           inStock: p.inStock ? "Yes" : "No",
         };
       }),
@@ -236,6 +237,7 @@ export async function POST(request: NextRequest) {
           name: p.title,
           price: `$${p.priceRange.min}`,
           condition: condition,
+          sku: p.variants[0]?.sku || "N/A",
           inStock: p.inStock ? "Yes" : "No",
         };
       }),
