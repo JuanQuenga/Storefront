@@ -4,15 +4,25 @@ import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 
 export async function GET(request: NextRequest) {
   try {
-    // Vapi: ALWAYS read JSON body per docs
+    // Vapi: ALWAYS read JSON body per docs, but handle empty body gracefully
     const bodyText = await request.text();
-    const bodyJson = JSON.parse(bodyText);
+    let bodyJson = null;
+
+    if (bodyText.trim()) {
+      try {
+        bodyJson = JSON.parse(bodyText);
+      } catch (parseError) {
+        console.warn("Failed to parse request body as JSON:", parseError);
+        // Continue with null bodyJson - will use query params as fallback
+      }
+    }
 
     // Extract from Vapi tool call (always present)
     let toolCallId: string | undefined;
     let vapiArgs: any = {};
 
-    const callFromMessage = Array.isArray(bodyJson?.message?.toolCallList)
+    // Try to extract from JSON body first
+    const callFromMessage = bodyJson && Array.isArray(bodyJson?.message?.toolCallList)
       ? bodyJson.message.toolCallList[0]
       : undefined;
     const callFromToolCall = bodyJson?.toolCall;
@@ -41,6 +51,39 @@ export async function GET(request: NextRequest) {
         limit: bodyJson.limit,
         cursor: bodyJson.cursor,
       };
+    }
+
+    // Fallback: Extract from query parameters if no valid body
+    if (!toolCallId) {
+      const url = new URL(request.url);
+      const query = url.searchParams.get("q") || url.searchParams.get("query") || "";
+      const limit = url.searchParams.get("limit");
+      const cursor = url.searchParams.get("cursor");
+
+      // Check if there's a message parameter with JSON
+      const messageParam = url.searchParams.get("message");
+      if (messageParam) {
+        try {
+          const decodedMessage = JSON.parse(decodeURIComponent(messageParam));
+          if (decodedMessage.toolCallList && decodedMessage.toolCallList[0]) {
+            const toolCall = decodedMessage.toolCallList[0];
+            toolCallId = toolCall.id;
+            vapiArgs = toolCall.arguments || toolCall.function?.parameters || {};
+          }
+        } catch (e) {
+          console.warn("Failed to parse message query param:", e);
+        }
+      }
+
+      // If still no toolCallId, use simple query params
+      if (!toolCallId && (query || limit || cursor)) {
+        toolCallId = "query-params-fallback";
+        vapiArgs = {
+          q: query,
+          limit: limit ? parseInt(limit) : undefined,
+          cursor: cursor || undefined,
+        };
+      }
     }
 
     // Inputs (Vapi format)
@@ -151,11 +194,13 @@ export async function GET(request: NextRequest) {
     let errorToolCallId = "unknown";
     try {
       const bodyText = await request.text();
-      const bodyJson = JSON.parse(bodyText);
-      const call = Array.isArray(bodyJson?.message?.toolCallList)
-        ? bodyJson.message.toolCallList[0]
-        : bodyJson?.toolCall || bodyJson;
-      errorToolCallId = call?.id || "unknown";
+      if (bodyText.trim()) {
+        const bodyJson = JSON.parse(bodyText);
+        const call = Array.isArray(bodyJson?.message?.toolCallList)
+          ? bodyJson.message.toolCallList[0]
+          : bodyJson?.toolCall || bodyJson;
+        errorToolCallId = call?.id || "unknown";
+      }
     } catch (_) {}
 
     const errorResult = JSON.stringify({ error: "Internal server error" });
