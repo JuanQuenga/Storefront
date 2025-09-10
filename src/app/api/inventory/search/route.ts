@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
   try {
     // Parse request body
     let requestBody: any = {};
-
+    
     if (rawBody.trim().length > 0) {
       try {
         requestBody = JSON.parse(rawBody);
@@ -151,10 +151,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Extract parameters from request body
-    const q = (requestBody.q ?? "").toString();
-    const limit = Math.min(Number(requestBody.limit ?? 5), 50);
-    const cursor = requestBody.cursor ?? null;
+    // Extract parameters from VAPI tool call format
+    let q = "";
+    let limit = 5;
+    let cursor = null;
+
+    // Check if this is a VAPI tool call
+    if (requestBody.message?.toolCallList?.[0]) {
+      const toolCall = requestBody.message.toolCallList[0];
+      const args = toolCall.function?.arguments || {};
+      q = (args.q ?? "").toString();
+      limit = Math.min(Number(args.limit ?? 5), 50);
+      cursor = args.cursor ?? null;
+    } else {
+      // Fallback to direct body parameters
+      q = (requestBody.q ?? "").toString();
+      limit = Math.min(Number(requestBody.limit ?? 5), 50);
+      cursor = requestBody.cursor ?? null;
+    }
 
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
       query: q,
