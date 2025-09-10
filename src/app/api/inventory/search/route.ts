@@ -5,10 +5,12 @@ import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 // Debug logging variables (only used in development)
 
 export async function GET(request: NextRequest) {
-  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `req_${Date.now()}_${Math.random()
+    .toString(36)
+    .substr(2, 9)}`;
 
   // Log incoming request (development only)
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === "development") {
     try {
       const debugModule = await import("@/app/debug-logs/page");
       const headers: Record<string, string> = {};
@@ -39,10 +41,12 @@ export async function GET(request: NextRequest) {
     const bodyText = await request.text();
 
     // Update log with body content
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       try {
         const debugModule = await import("@/app/debug-logs/page");
-        const logEntry = debugModule.requestLogs.find((log: any) => log.id === requestId);
+        const logEntry = debugModule.requestLogs.find(
+          (log: any) => log.id === requestId
+        );
         if (logEntry) {
           try {
             logEntry.body = bodyText.trim() ? JSON.parse(bodyText) : null;
@@ -65,41 +69,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Extract from Vapi tool call (always present)
+    // Extract from Vapi tool call - simplified to always use toolCallList[0]
     let toolCallId: string | undefined;
     let vapiArgs: any = {};
 
-    // Try to extract from JSON body first
-    const callFromMessage =
-      bodyJson && Array.isArray(bodyJson?.message?.toolCallList)
-        ? bodyJson.message.toolCallList[0]
-        : undefined;
-    const callFromToolCall = bodyJson?.toolCall;
-    const directArgs = bodyJson?.arguments;
-
-    if (callFromMessage) {
-      toolCallId = callFromMessage.id;
-      vapiArgs =
-        callFromMessage.arguments || callFromMessage.function?.parameters || {};
-    } else if (
-      callFromToolCall &&
-      (callFromToolCall.arguments || callFromToolCall.function?.parameters)
-    ) {
-      toolCallId = callFromToolCall.id;
-      vapiArgs =
-        callFromToolCall.arguments ||
-        callFromToolCall.function?.parameters ||
-        {};
-    } else if (directArgs) {
-      toolCallId = bodyJson.id || "vapi-direct-args";
-      vapiArgs = directArgs;
-    } else if (bodyJson && (bodyJson.q || bodyJson.limit || bodyJson.cursor)) {
-      toolCallId = bodyJson.id || "vapi-simple-body";
-      vapiArgs = {
-        q: bodyJson.q,
-        limit: bodyJson.limit,
-        cursor: bodyJson.cursor,
-      };
+    if (bodyJson?.message?.toolCallList?.[0]) {
+      const toolCall = bodyJson.message.toolCallList[0];
+      toolCallId = toolCall.id;
+      vapiArgs = toolCall.arguments || toolCall.function?.parameters || {};
     }
 
     // Fallback: Extract from query parameters if no valid body
@@ -238,10 +215,12 @@ export async function GET(request: NextRequest) {
     };
 
     // Log successful response
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       try {
         const debugModule = await import("@/app/debug-logs/page");
-        const logEntry = debugModule.requestLogs.find((log: any) => log.id === requestId);
+        const logEntry = debugModule.requestLogs.find(
+          (log: any) => log.id === requestId
+        );
         if (logEntry) {
           logEntry.response = responseData;
           logEntry.status = 200;
@@ -251,50 +230,50 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(
-      responseData,
-      { headers: corsHeaders(request.headers.get("origin") || undefined) }
-    );
+    return NextResponse.json(responseData, {
+      headers: corsHeaders(request.headers.get("origin") || undefined),
+    });
   } catch (error) {
     console.error("Error searching products:", error);
-    // Try to extract toolCallId from the request body for error response
+    // Extract toolCallId from request body for error response
     let errorToolCallId = "unknown";
     try {
       const bodyText = await request.text();
       if (bodyText.trim()) {
         const bodyJson = JSON.parse(bodyText);
-        const call = Array.isArray(bodyJson?.message?.toolCallList)
-          ? bodyJson.message.toolCallList[0]
-          : bodyJson?.toolCall || bodyJson;
-        errorToolCallId = call?.id || "unknown";
+        if (bodyJson?.message?.toolCallList?.[0]) {
+          errorToolCallId = bodyJson.message.toolCallList[0].id;
+        }
       }
     } catch (_) {}
 
     const errorResult = JSON.stringify({ error: "Internal server error" });
-    const errorResponseData = { results: [{ toolCallId: errorToolCallId, result: errorResult }] };
+    const errorResponseData = {
+      results: [{ toolCallId: errorToolCallId, result: errorResult }],
+    };
 
     // Log error response
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       try {
         const debugModule = await import("@/app/debug-logs/page");
-        const logEntry = debugModule.requestLogs.find((log: any) => log.id === requestId);
+        const logEntry = debugModule.requestLogs.find(
+          (log: any) => log.id === requestId
+        );
         if (logEntry) {
           logEntry.response = errorResponseData;
           logEntry.status = 500;
-          logEntry.error = error instanceof Error ? error.message : String(error);
+          logEntry.error =
+            error instanceof Error ? error.message : String(error);
         }
       } catch (e) {
         // Debug page doesn't exist, skip logging
       }
     }
 
-    return NextResponse.json(
-      errorResponseData,
-      {
-        status: 500,
-        headers: corsHeaders(request.headers.get("origin") || undefined),
-      }
-    );
+    return NextResponse.json(errorResponseData, {
+      status: 500,
+      headers: corsHeaders(request.headers.get("origin") || undefined),
+    });
   }
 }
 
