@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
 
     // Vapi: ALWAYS read JSON body per docs
-    let isVapi = false;
+    let isVapi = true;
     let vapiArgs: any = {};
     let toolCallId: string | undefined;
     try {
