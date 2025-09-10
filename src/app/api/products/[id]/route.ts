@@ -39,7 +39,6 @@ export async function GET(
       handle: product.handle,
       description: product.description,
       productType: product.productType,
-      tags: product.tags,
       vendor: product.vendor,
       priceRange: {
         min: product.priceRange.minVariantPrice.amount,

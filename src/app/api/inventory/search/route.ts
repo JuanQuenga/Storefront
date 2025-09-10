@@ -62,7 +62,6 @@ export async function GET(request: NextRequest) {
         handle: node.handle,
         description: node.description,
         productType: node.productType,
-        tags: node.tags,
         vendor: node.vendor,
         priceRange: {
           min: node.priceRange.minVariantPrice.amount,
@@ -163,7 +162,6 @@ export async function POST(request: NextRequest) {
         handle: node.handle,
         description: node.description,
         productType: node.productType,
-        tags: node.tags,
         vendor: node.vendor,
         priceRange: {
           min: node.priceRange.minVariantPrice.amount,

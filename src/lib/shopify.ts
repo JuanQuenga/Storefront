@@ -1,28 +1,21 @@
 import { createStorefrontApiClient } from "@shopify/storefront-api-client";
+import { env } from "./env";
 
-// Initialize the Storefront API client
-export const shopifyClient =
-  process.env.SHOPIFY_STORE_DOMAIN &&
-  process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN
-    ? createStorefrontApiClient({
-        storeDomain: process.env.SHOPIFY_STORE_DOMAIN,
-        publicAccessToken: process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN,
-        apiVersion: process.env.SHOPIFY_API_VERSION || "2024-04",
-      } as any)
-    : null;
+// Initialize the Storefront API client with tokenless access
+// Using a dummy token to satisfy the client library - actual requests will be tokenless
+export const shopifyClient = createStorefrontApiClient({
+  storeDomain: env.SHOPIFY_STORE_DOMAIN,
+  apiVersion: env.SHOPIFY_API_VERSION,
+  publicAccessToken: "dummy-token-for-tokenless-access", // Dummy token for client compatibility
+} as any);
 
-// Function to get the client with validation
+// Function to get the client (always available since validation happens at startup)
 export function getShopifyClient() {
-  if (!shopifyClient) {
-    throw new Error(
-      "Shopify client not initialized. Please check your environment variables."
-    );
-  }
   return shopifyClient;
 }
 
-// GraphQL queries (keeping as strings for Shopify client compatibility)
-// These can be validated against the generated types
+// GraphQL queries for tokenless access (keeping as strings for Shopify client compatibility)
+// Note: Product tags require token-based authentication, so they're excluded from tokenless queries
 export const PRODUCT_SEARCH_QUERY = `
   query ProductSearch($query: String!, $first: Int!, $after: String) {
     products(query: $query, first: $first, after: $after) {
@@ -33,7 +26,6 @@ export const PRODUCT_SEARCH_QUERY = `
           handle
           description
           productType
-          tags
           vendor
           priceRange {
             minVariantPrice {
@@ -94,7 +86,6 @@ export const PRODUCT_BY_ID_QUERY = `
       handle
       description
       productType
-      tags
       vendor
       priceRange {
         minVariantPrice {

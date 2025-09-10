@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
 interface ApiResponse {
   data?: any;
@@ -9,19 +9,19 @@ interface ApiResponse {
 }
 
 export default function DebugPage() {
-  const [selectedEndpoint, setSelectedEndpoint] = useState<string>('');
+  const [selectedEndpoint, setSelectedEndpoint] = useState<string>("");
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Form states for different endpoints
-  const [searchQuery, setSearchQuery] = useState('t-shirt');
-  const [searchLimit, setSearchLimit] = useState('10');
-  const [productType, setProductType] = useState('');
-  const [vendor, setVendor] = useState('');
+  const [searchQuery, setSearchQuery] = useState("t-shirt");
+  const [searchLimit, setSearchLimit] = useState("10");
+  const [productType, setProductType] = useState("");
+  const [vendor, setVendor] = useState("");
   const [inStock, setInStock] = useState(false);
-  const [productId, setProductId] = useState('');
-  const [variantIds, setVariantIds] = useState('');
-  const [collectionLimit, setCollectionLimit] = useState('5');
+  const [productId, setProductId] = useState("");
+  const [variantIds, setVariantIds] = useState("");
+  const [collectionLimit, setCollectionLimit] = useState("5");
   const [includeProducts, setIncludeProducts] = useState(false);
 
   const makeRequest = async (url: string, options?: RequestInit) => {
@@ -38,7 +38,7 @@ export default function DebugPage() {
       });
     } catch (error) {
       setResponse({
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
         status: 0,
       });
     } finally {
@@ -48,19 +48,21 @@ export default function DebugPage() {
 
   const testSearchEndpoint = async () => {
     const params = new URLSearchParams();
-    if (searchQuery) params.append('q', searchQuery);
-    if (searchLimit) params.append('limit', searchLimit);
-    if (productType) params.append('product_type', productType);
-    if (vendor) params.append('vendor', vendor);
-    if (inStock) params.append('in_stock', 'true');
+    if (searchQuery) params.append("q", searchQuery);
+    if (searchLimit) params.append("limit", searchLimit);
+    if (productType) params.append("product_type", productType);
+    if (vendor) params.append("vendor", vendor);
+    if (inStock) params.append("in_stock", "true");
 
-    const url = `/api/inventory/search${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `/api/inventory/search${
+      params.toString() ? "?" + params.toString() : ""
+    }`;
     await makeRequest(url);
   };
 
   const testProductEndpoint = async () => {
     if (!productId.trim()) {
-      setResponse({ error: 'Please enter a product ID', status: 400 });
+      setResponse({ error: "Please enter a product ID", status: 400 });
       return;
     }
     const url = `/api/products/${productId}`;
@@ -69,7 +71,7 @@ export default function DebugPage() {
 
   const testInventoryCheckEndpoint = async () => {
     if (!variantIds.trim()) {
-      setResponse({ error: 'Please enter variant IDs', status: 400 });
+      setResponse({ error: "Please enter variant IDs", status: 400 });
       return;
     }
     const url = `/api/inventory/check?ids=${variantIds}`;
@@ -78,10 +80,12 @@ export default function DebugPage() {
 
   const testCollectionsEndpoint = async () => {
     const params = new URLSearchParams();
-    if (collectionLimit) params.append('limit', collectionLimit);
-    if (includeProducts) params.append('include_products', 'true');
+    if (collectionLimit) params.append("limit", collectionLimit);
+    if (includeProducts) params.append("include_products", "true");
 
-    const url = `/api/collections${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `/api/collections${
+      params.toString() ? "?" + params.toString() : ""
+    }`;
     await makeRequest(url);
   };
 
@@ -97,14 +101,14 @@ export default function DebugPage() {
       pagination: {
         limit: parseInt(searchLimit) || 10,
       },
-      sort: 'RELEVANCE',
+      sort: "RELEVANCE",
     };
 
-    const url = '/api/inventory/search';
+    const url = "/api/inventory/search";
     await makeRequest(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     });
@@ -112,18 +116,24 @@ export default function DebugPage() {
 
   const testBatchInventoryCheck = async () => {
     if (!variantIds.trim()) {
-      setResponse({ error: 'Please enter variant IDs (comma-separated)', status: 400 });
+      setResponse({
+        error: "Please enter variant IDs (comma-separated)",
+        status: 400,
+      });
       return;
     }
 
-    const variantIdsArray = variantIds.split(',').map(id => id.trim()).filter(id => id);
+    const variantIdsArray = variantIds
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id);
     const body = { variantIds: variantIdsArray };
 
-    const url = '/api/inventory/check';
+    const url = "/api/inventory/check";
     await makeRequest(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     });
@@ -131,51 +141,51 @@ export default function DebugPage() {
 
   const endpoints = [
     {
-      name: 'Product Search',
-      description: 'Search products with filters',
-      method: 'GET',
-      url: '/api/inventory/search',
-      parameters: ['q', 'limit', 'product_type', 'vendor', 'in_stock'],
+      name: "Product Search",
+      description: "Search products with filters",
+      method: "GET",
+      url: "/api/inventory/search",
+      parameters: ["q", "limit", "product_type", "vendor", "in_stock"],
       action: testSearchEndpoint,
     },
     {
-      name: 'Advanced Product Search',
-      description: 'Advanced search with complex filters',
-      method: 'POST',
-      url: '/api/inventory/search',
-      parameters: ['query', 'filters', 'pagination', 'sort'],
+      name: "Advanced Product Search",
+      description: "Advanced search with complex filters",
+      method: "POST",
+      url: "/api/inventory/search",
+      parameters: ["query", "filters", "pagination", "sort"],
       action: testAdvancedSearch,
     },
     {
-      name: 'Get Product by ID',
-      description: 'Get detailed product information',
-      method: 'GET',
-      url: '/api/products/{id}',
-      parameters: ['id'],
+      name: "Get Product by ID",
+      description: "Get detailed product information",
+      method: "GET",
+      url: "/api/products/{id}",
+      parameters: ["id"],
       action: testProductEndpoint,
     },
     {
-      name: 'Check Inventory',
-      description: 'Check inventory levels for variants',
-      method: 'GET',
-      url: '/api/inventory/check',
-      parameters: ['ids'],
+      name: "Check Inventory",
+      description: "Check inventory levels for variants",
+      method: "GET",
+      url: "/api/inventory/check",
+      parameters: ["ids"],
       action: testInventoryCheckEndpoint,
     },
     {
-      name: 'Batch Inventory Check',
-      description: 'Check multiple variants at once',
-      method: 'POST',
-      url: '/api/inventory/check',
-      parameters: ['variantIds'],
+      name: "Batch Inventory Check",
+      description: "Check multiple variants at once",
+      method: "POST",
+      url: "/api/inventory/check",
+      parameters: ["variantIds"],
       action: testBatchInventoryCheck,
     },
     {
-      name: 'Get Collections',
-      description: 'Browse product collections',
-      method: 'GET',
-      url: '/api/collections',
-      parameters: ['limit', 'include_products'],
+      name: "Get Collections",
+      description: "Browse product collections",
+      method: "GET",
+      url: "/api/collections",
+      parameters: ["limit", "include_products"],
       action: testCollectionsEndpoint,
     },
   ];
@@ -187,9 +197,12 @@ export default function DebugPage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Shopify Inventory API Debug Page
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-2">
             Test all API endpoints with live examples
           </p>
+          <div className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
+            🔓 Tokenless Access - No Authentication Required
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -334,9 +347,25 @@ export default function DebugPage() {
                 >
                   {loading && selectedEndpoint === endpoint.name ? (
                     <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <svg
+                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                       Testing...
                     </span>
@@ -354,9 +383,41 @@ export default function DebugPage() {
               API Endpoints
             </h2>
 
+            {/* Tokenless Access Info */}
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+              <h3 className="font-medium text-blue-900 mb-2">
+                🔓 Tokenless Access Benefits
+              </h3>
+              <div className="text-sm text-blue-800 space-y-1">
+                <div>
+                  ✅ <strong>No Authentication Required</strong> - Just set your
+                  store domain
+                </div>
+                <div>
+                  ✅ <strong>Query Complexity Limit</strong> - 1,000 points
+                  (sufficient for most apps)
+                </div>
+                <div>
+                  ✅ <strong>Core Features Available</strong> - Products,
+                  Search, Collections, Cart
+                </div>
+                <div>
+                  ❌ <strong>Product Tags</strong> - Require token-based
+                  authentication
+                </div>
+                <div>
+                  ❌ <strong>Metaobjects/Metafields</strong> - Require
+                  token-based authentication
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-4">
               {endpoints.map((endpoint) => (
-                <div key={endpoint.name} className="border border-gray-200 rounded-lg p-4">
+                <div
+                  key={endpoint.name}
+                  className="border border-gray-200 rounded-lg p-4"
+                >
                   <h3 className="font-medium text-gray-900 mb-1">
                     {endpoint.name}
                   </h3>
@@ -371,7 +432,8 @@ export default function DebugPage() {
                   </div>
 
                   <div className="text-xs text-gray-500">
-                    <strong>Parameters:</strong> {endpoint.parameters.join(', ')}
+                    <strong>Parameters:</strong>{" "}
+                    {endpoint.parameters.join(", ")}
                   </div>
                 </div>
               ))}
@@ -379,31 +441,29 @@ export default function DebugPage() {
 
             {/* Quick Examples */}
             <div className="mt-6 pt-4 border-t border-gray-200">
-              <h3 className="font-medium text-gray-900 mb-3">
-                Quick Examples
-              </h3>
+              <h3 className="font-medium text-gray-900 mb-3">Quick Examples</h3>
 
               <div className="space-y-2 text-sm">
                 <div>
-                  <strong>Search:</strong>{' '}
+                  <strong>Search:</strong>{" "}
                   <code className="bg-gray-100 px-1 rounded">
                     /api/inventory/search?q=t-shirt&limit=5
                   </code>
                 </div>
                 <div>
-                  <strong>Product:</strong>{' '}
+                  <strong>Product:</strong>{" "}
                   <code className="bg-gray-100 px-1 rounded">
                     /api/products/gid://shopify/Product/123
                   </code>
                 </div>
                 <div>
-                  <strong>Inventory:</strong>{' '}
+                  <strong>Inventory:</strong>{" "}
                   <code className="bg-gray-100 px-1 rounded">
                     /api/inventory/check?ids=variant-1,variant-2
                   </code>
                 </div>
                 <div>
-                  <strong>Collections:</strong>{' '}
+                  <strong>Collections:</strong>{" "}
                   <code className="bg-gray-100 px-1 rounded">
                     /api/collections?limit=10
                   </code>
@@ -420,11 +480,13 @@ export default function DebugPage() {
               <h2 className="text-xl font-semibold text-gray-900">
                 API Response
               </h2>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                response.status >= 200 && response.status < 300
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              }`}>
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  response.status >= 200 && response.status < 300
+                    ? "bg-green-100 text-green-800"
+                    : "bg-red-100 text-red-800"
+                }`}
+              >
                 Status: {response.status}
               </span>
             </div>
@@ -432,9 +494,7 @@ export default function DebugPage() {
             <div className="bg-gray-50 rounded-lg p-4">
               <pre className="text-sm overflow-x-auto whitespace-pre-wrap">
                 {response.error ? (
-                  <span className="text-red-600">
-                    Error: {response.error}
-                  </span>
+                  <span className="text-red-600">Error: {response.error}</span>
                 ) : (
                   JSON.stringify(response.data, null, 2)
                 )}
@@ -445,8 +505,13 @@ export default function DebugPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-gray-500 text-sm">
+          <p className="mb-2">
+            🔓 <strong>Tokenless Access</strong> - Just set your Shopify store
+            domain in <code>.env.local</code>
+          </p>
           <p>
-            Make sure to set up your Shopify credentials in <code>.env.local</code> for live testing.
+            No authentication tokens required for basic product, search, and
+            inventory operations!
           </p>
         </div>
       </div>

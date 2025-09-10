@@ -9,45 +9,89 @@ A comprehensive REST API built with Next.js for searching and managing Shopify s
 - 🏷️ **Product Details**: Complete product information including variants
 - 📂 **Collections**: Browse and search through product collections
 - 🚀 **RESTful Design**: Clean, intuitive API endpoints
-- 🔒 **Tokenless**: Uses Shopify Storefront API (no authentication required)
+- 🔓 **Tokenless Access**: Uses Shopify Storefront API without authentication
 - 📊 **Pagination**: Efficient handling of large product catalogs
+- 🧪 **Debug Page**: Interactive testing interface at `/debug`
+- 📝 **Type Safety**: Full TypeScript support with GraphQL codegen
+- 🛡️ **Environment Validation**: Zod-powered validation for all environment variables
 
 ## Quick Start
 
-### 1. Environment Setup
+### 1. Environment Setup (Tokenless Access)
+
+This API uses Shopify's **tokenless access** which means **no authentication is required**!
 
 Create a `.env.local` file in the project root:
 
-```env
-SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
-SHOPIFY_STOREFRONT_ACCESS_TOKEN=your-storefront-access-token
-SHOPIFY_API_VERSION=2024-04
+### 3. Set up Environment Variables
+
+Create a `.env.local` file in your project root using the provided template:
+
+```bash
+cp env.example .env.local
 ```
 
-### 2. Get Shopify Credentials
+Then fill in your actual values:
 
-1. Go to your Shopify admin panel
-2. Navigate to **Settings > Apps and sales channels**
-3. Click **Develop apps** (top right)
-4. Create a new app or select an existing one
-5. In the **API credentials** tab, click **Install app**
-6. Under **Storefront API**, click **Add** for Storefront API access scopes
-7. Select the necessary scopes (products, collections, etc.)
-8. Copy the **Storefront access token**
+```env
+# REQUIRED: Your Shopify store domain (without https://)
+SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
 
-### 3. Install Dependencies
+# OPTIONAL: API version (defaults to 2025-07)
+SHOPIFY_API_VERSION=2025-07
+```
+
+#### Environment Variable Validation
+
+The application uses **Zod** for robust environment variable validation:
+
+- ✅ **Type Safety**: All environment variables are validated at startup
+- ✅ **Format Validation**: Ensures Shopify domains are properly formatted
+- ✅ **Clear Error Messages**: Detailed validation errors if configuration is incorrect
+- ✅ **Default Values**: Sensible defaults for optional variables
+
+**Validation Rules:**
+
+- `SHOPIFY_STORE_DOMAIN`: Must be a valid Shopify domain (e.g., `mystore.myshopify.com`)
+- `SHOPIFY_API_VERSION`: Must be in `YYYY-MM` format (defaults to `2025-07`)
+
+#### Tokenless Access Features
+
+With tokenless access, you get:
+
+- ✅ **Products and Collections** - Full access
+- ✅ **Search functionality** - Advanced product search
+- ✅ **Cart operations** - Read and write cart data
+- ✅ **Selling Plans** - Access to subscription plans
+- ❌ **Product Tags** - Requires token-based authentication
+- ❌ **Metaobjects/Metafields** - Requires token-based authentication
+
+If validation fails, the application will show clear error messages explaining what's wrong.
+
+### 4. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 4. Run the Development Server
+### 5. Run the Development Server
 
 ```bash
 npm run dev
 ```
 
 The API will be available at `http://localhost:3000`
+
+### 6. Test Your API
+
+Visit `http://localhost:3000/debug` for an interactive debug page where you can:
+
+- Test all API endpoints with live buttons
+- See example URLs and parameters
+- View API responses in real-time
+- Experiment with different search filters
+
+Or visit `http://localhost:3000` for the main landing page with API documentation.
 
 ## API Endpoints
 
