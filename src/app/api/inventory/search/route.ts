@@ -588,6 +588,9 @@ export async function POST(request: NextRequest) {
     .toString(36)
     .substr(2, 9)}`;
 
+  let toolCallId: string | undefined;
+  const isVapiRequest = false;
+
   logger.info("🚨 === POST REQUEST START ===", {
     requestId,
     timestamp: new Date().toISOString(),
