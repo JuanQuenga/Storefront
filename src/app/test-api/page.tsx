@@ -49,21 +49,6 @@ export default function TestApiPage() {
     }
   };
 
-  const testGetApi = async () => {
-    setLoading(true);
-    setError(null);
-    setResponse(null);
-
-    try {
-      const res = await fetch("/api/inventory/search");
-      const data = await res.json();
-      setResponse(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const presetBodies = {
     vapi: `{
@@ -144,15 +129,7 @@ export default function TestApiPage() {
                   disabled={loading}
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
-                  {loading ? "Testing..." : "Test POST API"}
-                </button>
-
-                <button
-                  onClick={testGetApi}
-                  disabled={loading}
-                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                >
-                  {loading ? "Testing..." : "Test GET API"}
+                  {loading ? "Testing..." : "Test API"}
                 </button>
               </div>
             </div>
@@ -233,39 +210,6 @@ export default function TestApiPage() {
               </pre>
             </div>
 
-            <div>
-              <h3 className="text-lg font-medium text-green-400 mb-2">
-                GET /api/inventory/search
-              </h3>
-              <p className="text-gray-300 text-sm mb-3">
-                Search products using URL parameters.
-              </p>
-
-              <h4 className="text-md font-medium text-gray-300 mb-2">
-                URL Parameters:
-              </h4>
-              <ul className="text-gray-300 text-sm space-y-1">
-                <li>
-                  <code className="bg-gray-700 px-1 rounded">q</code> - Search
-                  query
-                </li>
-                <li>
-                  <code className="bg-gray-700 px-1 rounded">limit</code> - Max
-                  results (default: 5)
-                </li>
-                <li>
-                  <code className="bg-gray-700 px-1 rounded">cursor</code> -
-                  Pagination cursor
-                </li>
-              </ul>
-
-              <h4 className="text-md font-medium text-gray-300 mb-2 mt-4">
-                Example:
-              </h4>
-              <code className="bg-gray-900 p-2 rounded text-xs text-gray-300 block">
-                /api/inventory/search?q=laptop&amp;limit=10
-              </code>
-            </div>
           </div>
         </div>
       </div>
