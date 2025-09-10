@@ -41,6 +41,12 @@ export async function GET(request: NextRequest) {
 
     const { products } = response.data;
 
+    // Log raw products data for debugging
+    logger.info("Raw products data", {
+      productsCount: products.edges.length,
+      firstProduct: products.edges[0]?.node || null,
+    });
+
     const transformedProducts = products.edges.map(
       ({ node }: { node: any }) => {
         const currency = node.priceRange.minVariantPrice.currencyCode;
@@ -82,11 +88,16 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    // Return customer-friendly format
-    const resultData = {
-      query: finalQuery,
-      totalFound: transformedProducts.length,
-      products: transformedProducts.slice(0, finalLimit).map((p: any) => {
+    // Log transformed products for debugging
+    logger.info("Transformed products", {
+      transformedCount: transformedProducts.length,
+      firstTransformed: transformedProducts[0] || null,
+    });
+
+    // Create customer-friendly product data
+    const customerProducts = transformedProducts
+      .slice(0, finalLimit)
+      .map((p: any) => {
         // Extract condition from descriptionHtml
         let condition = "Unknown";
         if (p.descriptionHtml) {
@@ -106,19 +117,41 @@ export async function GET(request: NextRequest) {
           sku: p.variants[0]?.sku || "N/A",
           inStock: p.inStock ? "Yes" : "No",
         };
-      }),
-    };
+      });
+
+    // Create serialized string response for AI
+    let responseString = "";
+
+    if (customerProducts.length === 0) {
+      responseString = `No products found for "${finalQuery}". Please try a different search term.`;
+    } else {
+      responseString = `Found ${customerProducts.length} product${
+        customerProducts.length === 1 ? "" : "s"
+      } for "${finalQuery}":\n\n`;
+
+      customerProducts.forEach((product: any, index: number) => {
+        responseString += `${index + 1}. ${product.name}\n`;
+        responseString += `   Price: ${product.price}\n`;
+        responseString += `   Condition: ${product.condition}\n`;
+        responseString += `   SKU: ${product.sku}\n`;
+        responseString += `   In Stock: ${product.inStock}\n\n`;
+      });
+    }
 
     // Log the response
     logger.info("API response", {
       query: finalQuery,
-      totalFound: resultData.totalFound,
-      productsCount: resultData.products.length,
-      response: resultData,
+      totalFound: customerProducts.length,
+      responseString: responseString,
     });
 
-    return NextResponse.json(resultData, {
-      headers: corsHeaders(request.headers.get("origin") || undefined),
+    // Return only the serialized string as plain text
+    return new NextResponse(responseString, {
+      status: 200,
+      headers: {
+        ...corsHeaders(request.headers.get("origin") || undefined),
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
     });
   } catch (error) {
     logger.error("Request failed", {
@@ -225,47 +258,62 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    const payload = {
-      query: q,
-      totalFound: transformedProducts.length,
-      products: transformedProducts.map((p: any) => {
-        // Extract condition from descriptionHtml
-        let condition = "Unknown";
-        if (p.descriptionHtml) {
-          // Look for table rows with condition information
-          const conditionMatch = p.descriptionHtml.match(
-            /<tr[^>]*>.*?<td[^>]*>.*?condition.*?<\/td>.*?<td[^>]*>(.*?)<\/td>.*?<\/tr>/i
-          );
-          if (conditionMatch) {
-            condition = conditionMatch[1].replace(/<[^>]*>/g, "").trim();
-          }
+    // Create customer-friendly product data
+    const customerProducts = transformedProducts.map((p: any) => {
+      // Extract condition from descriptionHtml
+      let condition = "Unknown";
+      if (p.descriptionHtml) {
+        // Look for table rows with condition information
+        const conditionMatch = p.descriptionHtml.match(
+          /<tr[^>]*>.*?<td[^>]*>.*?condition.*?<\/td>.*?<td[^>]*>(.*?)<\/td>.*?<\/tr>/i
+        );
+        if (conditionMatch) {
+          condition = conditionMatch[1].replace(/<[^>]*>/g, "").trim();
         }
+      }
 
-        return {
-          name: p.title,
-          price: `$${p.priceRange.min}`,
-          condition: condition,
-          sku: p.variants[0]?.sku || "N/A",
-          inStock: p.inStock ? "Yes" : "No",
-        };
-      }),
-      pagination: {
-        hasNextPage: products.pageInfo.hasNextPage,
-        endCursor: products.pageInfo.endCursor,
-        totalCount: transformedProducts.length,
-      },
-    };
+      return {
+        name: p.title,
+        price: `$${p.priceRange.min}`,
+        condition: condition,
+        sku: p.variants[0]?.sku || "N/A",
+        inStock: p.inStock ? "Yes" : "No",
+      };
+    });
+
+    // Create serialized string response for AI
+    let responseString = "";
+
+    if (customerProducts.length === 0) {
+      responseString = `No products found for "${q}". Please try a different search term.`;
+    } else {
+      responseString = `Found ${customerProducts.length} product${
+        customerProducts.length === 1 ? "" : "s"
+      } for "${q}":\n\n`;
+
+      customerProducts.forEach((product: any, index: number) => {
+        responseString += `${index + 1}. ${product.name}\n`;
+        responseString += `   Price: ${product.price}\n`;
+        responseString += `   Condition: ${product.condition}\n`;
+        responseString += `   SKU: ${product.sku}\n`;
+        responseString += `   In Stock: ${product.inStock}\n\n`;
+      });
+    }
 
     // Log the response
     logger.info("API POST response", {
       query: q,
-      totalFound: payload.totalFound,
-      productsCount: payload.products.length,
-      response: payload,
+      totalFound: customerProducts.length,
+      responseString: responseString,
     });
 
-    return NextResponse.json(payload, {
-      headers: corsHeaders(request.headers.get("origin") || undefined),
+    // Return only the serialized string as plain text
+    return new NextResponse(responseString, {
+      status: 200,
+      headers: {
+        ...corsHeaders(request.headers.get("origin") || undefined),
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
     });
   } catch (error) {
     logger.error("POST request failed", {

@@ -55,7 +55,7 @@ export default function TestApiPage() {
     setResponse(null);
 
     try {
-      const res = await fetch("/api/inventory/search?q=test&limit=3");
+      const res = await fetch("/api/inventory/search");
       const data = await res.json();
       setResponse(data);
     } catch (err) {
