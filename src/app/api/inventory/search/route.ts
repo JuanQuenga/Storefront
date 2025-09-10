@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
   try {
     // Parse request body
     let requestBody: any = {};
-    
+
     if (rawBody.trim().length > 0) {
       try {
         requestBody = JSON.parse(rawBody);
