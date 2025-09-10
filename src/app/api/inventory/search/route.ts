@@ -112,7 +112,19 @@ export async function GET(request: NextRequest) {
 // POST method for advanced search with multiple filters
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const rawBody = await request.json();
+
+    // Detect Vapi tool-call wrapper per docs: https://docs.vapi.ai/tools/custom-tools#request-format-understanding-the-tool-call-request
+    const vapiMessage = rawBody?.message;
+    const vapiToolCall = Array.isArray(vapiMessage?.toolCallList)
+      ? vapiMessage.toolCallList[0]
+      : undefined;
+    const isVapi = Boolean(vapiToolCall);
+    const vapiArgs =
+      vapiToolCall?.arguments || vapiToolCall?.function?.parameters || {};
+
+    // Merge simple + advanced + vapi arguments
+    const body = { ...(rawBody || {}), ...(isVapi ? vapiArgs : {}) } as any;
 
     // Support two shapes:
     // 1) Advanced: { query, filters, pagination, sort }
@@ -202,19 +214,54 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    return NextResponse.json(
-      {
-        products: transformedProducts,
-        pagination: {
-          hasNextPage: products.pageInfo.hasNextPage,
-          endCursor: products.pageInfo.endCursor,
-          totalCount: transformedProducts.length,
-        },
+    const payload = {
+      products: transformedProducts,
+      pagination: {
+        hasNextPage: products.pageInfo.hasNextPage,
+        endCursor: products.pageInfo.endCursor,
+        totalCount: transformedProducts.length,
       },
-      { headers: corsHeaders(request.headers.get("origin") || undefined) }
-    );
+    };
+
+    // If this is a Vapi tool-call, wrap in { results: [{ toolCallId, result }] }
+    if (isVapi) {
+      const toolCallId = vapiToolCall.id;
+      return NextResponse.json(
+        { results: [{ toolCallId, result: payload }] },
+        { headers: corsHeaders(request.headers.get("origin") || undefined) }
+      );
+    }
+
+    return NextResponse.json(payload, {
+      headers: corsHeaders(request.headers.get("origin") || undefined),
+    });
   } catch (error) {
     console.error("Error in advanced search:", error);
+    // If request was from Vapi, return wrapped error
+    try {
+      const rawBody = await request.json();
+      const vapiMessage = rawBody?.message;
+      const vapiToolCall = Array.isArray(vapiMessage?.toolCallList)
+        ? vapiMessage.toolCallList[0]
+        : undefined;
+      if (vapiToolCall) {
+        return NextResponse.json(
+          {
+            results: [
+              {
+                toolCallId: vapiToolCall.id,
+                result: { error: "Internal server error" },
+              },
+            ],
+          },
+          {
+            status: 500,
+            headers: corsHeaders(request.headers.get("origin") || undefined),
+          }
+        );
+      }
+    } catch (_) {}
+
     return NextResponse.json(
       { error: "Internal server error" },
       {
