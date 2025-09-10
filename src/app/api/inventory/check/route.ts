@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { corsHeaders } from "@/lib/cors";
 import { storefrontRequest, INVENTORY_QUERY } from "@/lib/shopify";
 
 export async function GET(request: NextRequest) {
@@ -66,26 +67,33 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({
-      inventory: inventoryData,
-      summary: {
-        totalVariants: inventoryData.length,
-        inStock: inventoryData.filter((item: any) => item.inventoryQuantity > 0)
-          .length,
-        outOfStock: inventoryData.filter(
-          (item: any) => item.inventoryQuantity === 0
-        ).length,
-        lowStock: inventoryData.filter(
-          (item: any) =>
-            item.inventoryQuantity > 0 && item.inventoryQuantity <= 5
-        ).length,
+    return NextResponse.json(
+      {
+        inventory: inventoryData,
+        summary: {
+          totalVariants: inventoryData.length,
+          inStock: inventoryData.filter(
+            (item: any) => item.inventoryQuantity > 0
+          ).length,
+          outOfStock: inventoryData.filter(
+            (item: any) => item.inventoryQuantity === 0
+          ).length,
+          lowStock: inventoryData.filter(
+            (item: any) =>
+              item.inventoryQuantity > 0 && item.inventoryQuantity <= 5
+          ).length,
+        },
       },
-    });
+      { headers: corsHeaders(request.headers.get("origin") || undefined) }
+    );
   } catch (error) {
     console.error("Error checking inventory:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      }
     );
   }
 }
@@ -150,26 +158,40 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({
-      inventory: inventoryData,
-      summary: {
-        totalVariants: inventoryData.length,
-        inStock: inventoryData.filter((item: any) => item.inventoryQuantity > 0)
-          .length,
-        outOfStock: inventoryData.filter(
-          (item: any) => item.inventoryQuantity === 0
-        ).length,
-        lowStock: inventoryData.filter(
-          (item: any) =>
-            item.inventoryQuantity > 0 && item.inventoryQuantity <= 5
-        ).length,
+    return NextResponse.json(
+      {
+        inventory: inventoryData,
+        summary: {
+          totalVariants: inventoryData.length,
+          inStock: inventoryData.filter(
+            (item: any) => item.inventoryQuantity > 0
+          ).length,
+          outOfStock: inventoryData.filter(
+            (item: any) => item.inventoryQuantity === 0
+          ).length,
+          lowStock: inventoryData.filter(
+            (item: any) =>
+              item.inventoryQuantity > 0 && item.inventoryQuantity <= 5
+          ).length,
+        },
       },
-    });
+      { headers: corsHeaders(request.headers.get("origin") || undefined) }
+    );
   } catch (error) {
     console.error("Error in batch inventory check:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      }
     );
   }
+}
+
+// Preflight support
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    headers: corsHeaders(request.headers.get("origin") || undefined),
+  });
 }

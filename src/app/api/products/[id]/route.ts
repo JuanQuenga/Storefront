@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { corsHeaders } from "@/lib/cors";
 import { storefrontRequest, PRODUCT_BY_ID_QUERY } from "@/lib/shopify";
 
 export async function GET(
@@ -12,7 +13,10 @@ export async function GET(
     if (!productId) {
       return NextResponse.json(
         { error: "Product ID is required" },
-        { status: 400 }
+        {
+          status: 400,
+          headers: corsHeaders(request.headers.get("origin") || undefined),
+        }
       );
     }
 
@@ -27,7 +31,13 @@ export async function GET(
     });
 
     if (!response?.data?.product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Product not found" },
+        {
+          status: 404,
+          headers: corsHeaders(request.headers.get("origin") || undefined),
+        }
+      );
     }
 
     const product = response.data.product;
@@ -78,12 +88,24 @@ export async function GET(
       ),
     };
 
-    return NextResponse.json(transformedProduct);
+    return NextResponse.json(transformedProduct, {
+      headers: corsHeaders(request.headers.get("origin") || undefined),
+    });
   } catch (error) {
     console.error("Error fetching product:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      }
     );
   }
+}
+
+// Preflight support
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    headers: corsHeaders(request.headers.get("origin") || undefined),
+  });
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { corsHeaders } from "@/lib/cors";
 import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 
 export async function GET(request: NextRequest) {
@@ -85,19 +86,25 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({
-      products: transformedProducts,
-      pagination: {
-        hasNextPage: products.pageInfo.hasNextPage,
-        endCursor: products.pageInfo.endCursor,
-        totalCount: transformedProducts.length,
+    return NextResponse.json(
+      {
+        products: transformedProducts,
+        pagination: {
+          hasNextPage: products.pageInfo.hasNextPage,
+          endCursor: products.pageInfo.endCursor,
+          totalCount: transformedProducts.length,
+        },
       },
-    });
+      { headers: corsHeaders(request.headers.get("origin") || undefined) }
+    );
   } catch (error) {
     console.error("Error searching products:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      }
     );
   }
 }
@@ -195,19 +202,32 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({
-      products: transformedProducts,
-      pagination: {
-        hasNextPage: products.pageInfo.hasNextPage,
-        endCursor: products.pageInfo.endCursor,
-        totalCount: transformedProducts.length,
+    return NextResponse.json(
+      {
+        products: transformedProducts,
+        pagination: {
+          hasNextPage: products.pageInfo.hasNextPage,
+          endCursor: products.pageInfo.endCursor,
+          totalCount: transformedProducts.length,
+        },
       },
-    });
+      { headers: corsHeaders(request.headers.get("origin") || undefined) }
+    );
   } catch (error) {
     console.error("Error in advanced search:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      }
     );
   }
+}
+
+// Preflight support
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    headers: corsHeaders(request.headers.get("origin") || undefined),
+  });
 }
