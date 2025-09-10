@@ -36,11 +36,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Execute GraphQL query
-    const response = await (getShopifyClient() as any).request(PRODUCT_SEARCH_QUERY, {
-      query: searchQuery,
-      first: limit,
-      after: cursor || null,
-    });
+    const response = await (getShopifyClient() as any).request(
+      PRODUCT_SEARCH_QUERY,
+      {
+        query: searchQuery,
+        first: limit,
+        after: cursor || null,
+      }
+    );
 
     if (!response?.data?.products) {
       return NextResponse.json(
@@ -52,34 +55,38 @@ export async function GET(request: NextRequest) {
     const { products } = response.data;
 
     // Transform the response to a more user-friendly format
-    const transformedProducts = products.edges.map(({ node }: { node: any }) => ({
-      id: node.id,
-      title: node.title,
-      handle: node.handle,
-      description: node.description,
-      productType: node.productType,
-      tags: node.tags,
-      vendor: node.vendor,
-      priceRange: {
-        min: node.priceRange.minVariantPrice.amount,
-        max: node.priceRange.maxVariantPrice.amount,
-        currency: node.priceRange.minVariantPrice.currencyCode,
-      },
-      variants: node.variants.edges.map(({ node: variant }: { node: any }) => ({
-        id: variant.id,
-        title: variant.title,
-        sku: variant.sku,
-        price: variant.price.amount,
-        compareAtPrice: variant.compareAtPrice?.amount || null,
-        inventoryQuantity: variant.inventoryQuantity,
-        availableForSale: variant.availableForSale,
-        options: variant.selectedOptions,
-      })),
-      images: node.images.edges.map(({ node: image }: { node: any }) => ({
-        url: image.url,
-        altText: image.altText,
-      })),
-    }));
+    const transformedProducts = products.edges.map(
+      ({ node }: { node: any }) => ({
+        id: node.id,
+        title: node.title,
+        handle: node.handle,
+        description: node.description,
+        productType: node.productType,
+        tags: node.tags,
+        vendor: node.vendor,
+        priceRange: {
+          min: node.priceRange.minVariantPrice.amount,
+          max: node.priceRange.maxVariantPrice.amount,
+          currency: node.priceRange.minVariantPrice.currencyCode,
+        },
+        variants: node.variants.edges.map(
+          ({ node: variant }: { node: any }) => ({
+            id: variant.id,
+            title: variant.title,
+            sku: variant.sku,
+            price: variant.price.amount,
+            compareAtPrice: variant.compareAtPrice?.amount || null,
+            inventoryQuantity: variant.inventoryQuantity,
+            availableForSale: variant.availableForSale,
+            options: variant.selectedOptions,
+          })
+        ),
+        images: node.images.edges.map(({ node: image }: { node: any }) => ({
+          url: image.url,
+          altText: image.altText,
+        })),
+      })
+    );
 
     return NextResponse.json({
       products: transformedProducts,
@@ -131,11 +138,14 @@ export async function POST(request: NextRequest) {
       searchQuery = `${query} ${filterParts.join(" ")}`.trim();
     }
 
-    const response = await (getShopifyClient() as any).request(PRODUCT_SEARCH_QUERY, {
-      query: searchQuery,
-      first: limit,
-      after: cursor || null,
-    });
+    const response = await (getShopifyClient() as any).request(
+      PRODUCT_SEARCH_QUERY,
+      {
+        query: searchQuery,
+        first: limit,
+        after: cursor || null,
+      }
+    );
 
     if (!response?.data?.products) {
       return NextResponse.json(
@@ -146,34 +156,38 @@ export async function POST(request: NextRequest) {
 
     const { products } = response.data;
 
-    const transformedProducts = products.edges.map(({ node }: { node: any }) => ({
-      id: node.id,
-      title: node.title,
-      handle: node.handle,
-      description: node.description,
-      productType: node.productType,
-      tags: node.tags,
-      vendor: node.vendor,
-      priceRange: {
-        min: node.priceRange.minVariantPrice.amount,
-        max: node.priceRange.maxVariantPrice.amount,
-        currency: node.priceRange.minVariantPrice.currencyCode,
-      },
-      variants: node.variants.edges.map(({ node: variant }: { node: any }) => ({
-        id: variant.id,
-        title: variant.title,
-        sku: variant.sku,
-        price: variant.price.amount,
-        compareAtPrice: variant.compareAtPrice?.amount || null,
-        inventoryQuantity: variant.inventoryQuantity,
-        availableForSale: variant.availableForSale,
-        options: variant.selectedOptions,
-      })),
-      images: node.images.edges.map(({ node: image }: { node: any }) => ({
-        url: image.url,
-        altText: image.altText,
-      })),
-    }));
+    const transformedProducts = products.edges.map(
+      ({ node }: { node: any }) => ({
+        id: node.id,
+        title: node.title,
+        handle: node.handle,
+        description: node.description,
+        productType: node.productType,
+        tags: node.tags,
+        vendor: node.vendor,
+        priceRange: {
+          min: node.priceRange.minVariantPrice.amount,
+          max: node.priceRange.maxVariantPrice.amount,
+          currency: node.priceRange.minVariantPrice.currencyCode,
+        },
+        variants: node.variants.edges.map(
+          ({ node: variant }: { node: any }) => ({
+            id: variant.id,
+            title: variant.title,
+            sku: variant.sku,
+            price: variant.price.amount,
+            compareAtPrice: variant.compareAtPrice?.amount || null,
+            inventoryQuantity: variant.inventoryQuantity,
+            availableForSale: variant.availableForSale,
+            options: variant.selectedOptions,
+          })
+        ),
+        images: node.images.edges.map(({ node: image }: { node: any }) => ({
+          url: image.url,
+          altText: image.altText,
+        })),
+      })
+    );
 
     return NextResponse.json({
       products: transformedProducts,
