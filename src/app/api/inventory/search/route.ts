@@ -123,30 +123,42 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    // If Vapi, return a human-readable string wrapped per Vapi spec
+    // If Vapi, return a structured JSON string with all product data for parsing
     if (isVapi) {
-      let spoken = "";
-      if (transformedProducts.length === 0) {
-        spoken = query
-          ? `I couldn't find any products for "${query}".`
-          : "I couldn't find any matching products.";
-      } else {
-        const lines = transformedProducts
-          .slice(0, limit)
-          .map((p: any, idx: number) => {
-            const price = p.priceRange.min;
-            const currency = p.priceRange.currency;
-            const status = p.inStock ? "in stock" : "out of stock";
-            return `${idx + 1}. ${p.title} — ${price} ${currency}, ${status}`;
-          });
-        spoken =
-          `Found ${transformedProducts.length} product${
-            transformedProducts.length === 1 ? "" : "s"
-          }. Top ${Math.min(limit, transformedProducts.length)}: ` +
-          lines.join("; ");
-      }
+      const resultData = {
+        query: query,
+        totalFound: transformedProducts.length,
+        products: transformedProducts.slice(0, limit).map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          description: p.description || "No description available",
+          handle: p.handle,
+          productType: p.productType,
+          vendor: p.vendor,
+          price: p.priceRange.min,
+          currency: p.priceRange.currency,
+          inStock: p.inStock,
+          imageUrl: p.images[0]?.url || null,
+          variants: p.variants.map((v: any) => ({
+            id: v.id,
+            title: v.title,
+            sku: v.sku,
+            price: v.price,
+            compareAtPrice: v.compareAtPrice,
+            inventoryQuantity: v.inventoryQuantity,
+            availableForSale: v.availableForSale,
+          })),
+        })),
+      };
+
+      // Serialize as a JSON string that can be easily parsed
+      const serializedResult = JSON.stringify(resultData);
       return NextResponse.json(
-        { results: [{ toolCallId: toolCallId || "unknown", result: spoken }] },
+        {
+          results: [
+            { toolCallId: toolCallId || "unknown", result: serializedResult },
+          ],
+        },
         { headers: corsHeaders(request.headers.get("origin") || undefined) }
       );
     }

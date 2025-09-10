@@ -186,11 +186,15 @@ export default function TestVapiPage() {
                   <li>Enter your Vapi tool call JSON in the textarea above</li>
                   <li>Click &ldquo;Test API Call&rdquo; to send the request</li>
                   <li>
-                    The response will show the human-readable string that Vapi
-                    will speak
+                    The response will show a structured JSON string containing
+                    all product details for easy parsing
                   </li>
-                  <li>Use &ldquo;Format JSON&rdquo; to pretty-print your JSON</li>
-                  <li>Use &ldquo;Load Example&rdquo; to see a sample tool call</li>
+                  <li>
+                    Use &ldquo;Format JSON&rdquo; to pretty-print your JSON
+                  </li>
+                  <li>
+                    Use &ldquo;Load Example&rdquo; to see a sample tool call
+                  </li>
                 </ol>
               </div>
             </div>
