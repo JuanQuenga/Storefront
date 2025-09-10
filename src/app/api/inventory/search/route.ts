@@ -7,52 +7,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
 
     // Vapi: ALWAYS read JSON body per docs
-    let isVapi = true;
+    let isVapi = false;
     let vapiArgs: any = {};
     let toolCallId: string | undefined;
     try {
       const bodyText = await request.text();
       if (bodyText) {
         const bodyJson = JSON.parse(bodyText);
-        const callFromMessage = Array.isArray(bodyJson?.message?.toolCallList)
-          ? bodyJson.message.toolCallList[0]
-          : undefined;
-        const callFromToolCall = bodyJson?.toolCall;
-        const directArgs = bodyJson?.arguments;
-
-        if (callFromMessage) {
-          isVapi = true;
-          toolCallId = callFromMessage.id;
-          vapiArgs =
-            callFromMessage.arguments ||
-            callFromMessage.function?.parameters ||
-            {};
-        } else if (
-          callFromToolCall &&
-          (callFromToolCall.arguments || callFromToolCall.function?.parameters)
-        ) {
-          isVapi = true;
-          toolCallId = callFromToolCall.id;
-          vapiArgs =
-            callFromToolCall.arguments ||
-            callFromToolCall.function?.parameters ||
-            {};
-        } else if (directArgs) {
-          isVapi = true;
-          toolCallId = bodyJson.id || "vapi-direct-args";
-          vapiArgs = directArgs;
-        } else if (
-          bodyJson &&
-          (bodyJson.q || bodyJson.limit || bodyJson.cursor)
-        ) {
-          isVapi = true;
-          toolCallId = bodyJson.id || "vapi-simple-body";
-          vapiArgs = {
-            q: bodyJson.q,
-            limit: bodyJson.limit,
-            cursor: bodyJson.cursor,
-          };
-        }
+        const callFromMessage = bodyJson.message.toolCallList[0];
+        toolCallId = callFromMessage.id;
+        isVapi = true;
+        toolCallId = bodyJson.id || "vapi-simple-body";
+        vapiArgs = {
+          q: bodyJson.q,
+          limit: bodyJson.limit,
+          cursor: bodyJson.cursor,
+        };
       }
     } catch (_) {}
 
