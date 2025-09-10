@@ -5,14 +5,58 @@ import { logger } from "@/lib/server-logger";
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
-  logger.info("Inventory check API called", { method: "GET" });
+  logger.info("🔍 Inventory check API called", { method: "GET" });
+
+  let toolCallId: string | undefined;
+  let isVapiRequest = false;
 
   try {
+    // Check for VAPI request format in body
+    const bodyText = await request.text();
+
+    if (bodyText.trim()) {
+      try {
+        const bodyJson = JSON.parse(bodyText);
+        if (bodyJson?.message?.toolCallList?.[0]) {
+          isVapiRequest = true;
+          const toolCall = bodyJson.message.toolCallList[0];
+          toolCallId = toolCall.id;
+
+          logger.info("🤖 VAPI Inventory Check Request Detected", {
+            toolCallId: toolCallId,
+            functionName: toolCall.function?.name,
+            vapiMessageId: bodyJson.message?.id,
+          });
+        }
+      } catch (e) {
+        // Not a JSON body, continue with query params
+      }
+    }
+
     const { searchParams } = new URL(request.url);
     const ids = searchParams.get("ids");
 
     if (!ids) {
-      logger.warn("Missing variant IDs in request", { url: request.url });
+      logger.warn("❌ Missing variant IDs in request", {
+        url: request.url,
+        isVapiRequest,
+      });
+      if (isVapiRequest && toolCallId) {
+        return NextResponse.json(
+          {
+            results: [
+              {
+                toolCallId: toolCallId,
+                result: { error: "Variant IDs are required" },
+              },
+            ],
+          },
+          {
+            status: 400,
+            headers: corsHeaders(request.headers.get("origin") || undefined),
+          }
+        );
+      }
       return NextResponse.json(
         { error: "Variant IDs are required" },
         { status: 400 }
@@ -26,7 +70,23 @@ export async function GET(request: NextRequest) {
       .filter((id) => id);
 
     if (variantIds.length === 0) {
-      logger.warn("No valid variant IDs provided", { ids });
+      logger.warn("❌ No valid variant IDs provided", { ids });
+      if (isVapiRequest && toolCallId) {
+        return NextResponse.json(
+          {
+            results: [
+              {
+                toolCallId: toolCallId,
+                result: { error: "At least one valid variant ID is required" },
+              },
+            ],
+          },
+          {
+            status: 400,
+            headers: corsHeaders(request.headers.get("origin") || undefined),
+          }
+        );
+      }
       return NextResponse.json(
         { error: "At least one valid variant ID is required" },
         { status: 400 }
@@ -38,15 +98,33 @@ export async function GET(request: NextRequest) {
       id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id}`
     );
 
-    logger.debug("Making Shopify inventory request", {
+    logger.debug("🔧 Making Shopify inventory request", {
       variantCount: formattedIds.length,
+      isVapiRequest,
     });
+
     const response = await storefrontRequest(INVENTORY_QUERY, {
       ids: formattedIds,
     });
 
     if (!response?.data?.nodes) {
       logger.error("Failed to fetch inventory data from Shopify", { response });
+      if (isVapiRequest && toolCallId) {
+        return NextResponse.json(
+          {
+            results: [
+              {
+                toolCallId: toolCallId,
+                result: { error: "Failed to fetch inventory data" },
+              },
+            ],
+          },
+          {
+            status: 500,
+            headers: corsHeaders(request.headers.get("origin") || undefined),
+          }
+        );
+      }
       return NextResponse.json(
         { error: "Failed to fetch inventory data" },
         { status: 500 }
@@ -77,30 +155,98 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json(
-      {
-        inventory: inventoryData,
-        summary: {
-          totalVariants: inventoryData.length,
-          inStock: inventoryData.filter(
-            (item: any) => item.inventoryQuantity > 0
-          ).length,
-          outOfStock: inventoryData.filter(
-            (item: any) => item.inventoryQuantity === 0
-          ).length,
-          lowStock: inventoryData.filter(
-            (item: any) =>
-              item.inventoryQuantity > 0 && item.inventoryQuantity <= 5
-          ).length,
-        },
+    const responseTime = Date.now() - startTime;
+
+    const inventoryResult = {
+      inventory: inventoryData,
+      summary: {
+        totalVariants: inventoryData.length,
+        inStock: inventoryData.filter((item: any) => item.inventoryQuantity > 0)
+          .length,
+        outOfStock: inventoryData.filter(
+          (item: any) => item.inventoryQuantity === 0
+        ).length,
+        lowStock: inventoryData.filter(
+          (item: any) =>
+            item.inventoryQuantity > 0 && item.inventoryQuantity <= 5
+        ).length,
       },
-      { headers: corsHeaders(request.headers.get("origin") || undefined) }
-    );
+    };
+
+    // Return VAPI format if this was a VAPI request
+    if (isVapiRequest && toolCallId) {
+      const vapiResponse = {
+        results: [
+          {
+            toolCallId: toolCallId,
+            result: inventoryResult,
+          },
+        ],
+      };
+
+      logger.info("✅ VAPI Inventory Check Response", {
+        method: request.method,
+        url: request.url,
+        statusCode: 200,
+        responseTime: `${responseTime}ms`,
+        inventoryCount: inventoryData.length,
+        toolCallId: toolCallId,
+        isVapiRequest: true,
+        responseFormat: "vapi",
+      });
+
+      return NextResponse.json(vapiResponse, {
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      });
+    }
+
+    logger.info("✅ Inventory Check Response", {
+      method: request.method,
+      url: request.url,
+      statusCode: 200,
+      responseTime: `${responseTime}ms`,
+      inventoryCount: inventoryData.length,
+      isVapiRequest: false,
+      responseFormat: "standard",
+    });
+
+    return NextResponse.json(inventoryResult, {
+      headers: corsHeaders(request.headers.get("origin") || undefined),
+    });
   } catch (error) {
-    logger.error("Error checking inventory", {
+    logger.error("❌ Error checking inventory", {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
+
+    // Return VAPI format if this was a VAPI request
+    if (isVapiRequest && toolCallId) {
+      const responseTime = Date.now() - startTime;
+      logger.error("❌ VAPI Inventory Check Error Response", {
+        method: request.method,
+        url: request.url,
+        statusCode: 500,
+        responseTime: `${responseTime}ms`,
+        toolCallId: toolCallId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return NextResponse.json(
+        {
+          results: [
+            {
+              toolCallId: toolCallId,
+              result: { error: "Internal server error" },
+            },
+          ],
+        },
+        {
+          status: 500,
+          headers: corsHeaders(request.headers.get("origin") || undefined),
+        }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       {
@@ -111,22 +257,93 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST method for batch inventory checking
+// POST method for VAPI requests
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { variantIds } = body;
+  const startTime = Date.now();
+  logger.info("🔍 Inventory check API called", { method: "POST" });
 
-    if (!variantIds || !Array.isArray(variantIds) || variantIds.length === 0) {
+  let toolCallId: string | undefined;
+  let isVapiRequest = false;
+
+  try {
+    const rawBody = await request.json();
+    logger.debug("📄 Raw POST request body received", { body: rawBody });
+
+    // Detect Vapi tool-call wrapper
+    const vapiMessage = rawBody?.message;
+    const vapiToolCall = Array.isArray(vapiMessage?.toolCallList)
+      ? vapiMessage.toolCallList[0]
+      : undefined;
+
+    if (vapiToolCall) {
+      isVapiRequest = true;
+      toolCallId = vapiToolCall.id;
+
+      logger.info("🤖 VAPI POST Inventory Check Request Detected", {
+        toolCallId: toolCallId,
+        functionName: vapiToolCall.function?.name,
+        vapiMessageId: vapiMessage?.id,
+      });
+    }
+
+    // Extract parameters from VAPI arguments
+    const args = vapiToolCall?.arguments || rawBody;
+    const ids = args?.ids;
+
+    if (!ids) {
+      logger.warn("❌ Missing variant IDs in POST request", { isVapiRequest });
+
+      if (isVapiRequest && toolCallId) {
+        return NextResponse.json(
+          {
+            results: [
+              {
+                toolCallId: toolCallId,
+                result: { error: "Variant IDs are required" },
+              },
+            ],
+          },
+          {
+            status: 400,
+            headers: corsHeaders(request.headers.get("origin") || undefined),
+          }
+        );
+      }
+
       return NextResponse.json(
-        { error: "variantIds array is required" },
+        { error: "Variant IDs are required" },
         { status: 400 }
       );
     }
 
-    if (variantIds.length > 50) {
+    // Parse and validate IDs
+    const variantIds = ids
+      .split(",")
+      .map((id: string) => id.trim())
+      .filter((id: string) => id);
+
+    if (variantIds.length === 0) {
+      logger.warn("❌ No valid variant IDs provided", { ids });
+
+      if (isVapiRequest && toolCallId) {
+        return NextResponse.json(
+          {
+            results: [
+              {
+                toolCallId: toolCallId,
+                result: { error: "At least one valid variant ID is required" },
+              },
+            ],
+          },
+          {
+            status: 400,
+            headers: corsHeaders(request.headers.get("origin") || undefined),
+          }
+        );
+      }
+
       return NextResponse.json(
-        { error: "Maximum 50 variants can be checked at once" },
+        { error: "At least one valid variant ID is required" },
         { status: 400 }
       );
     }
@@ -136,11 +353,35 @@ export async function POST(request: NextRequest) {
       id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id}`
     );
 
+    logger.debug("🔧 Making Shopify inventory request", {
+      variantCount: formattedIds.length,
+      isVapiRequest,
+    });
+
     const response = await storefrontRequest(INVENTORY_QUERY, {
       ids: formattedIds,
     });
 
     if (!response?.data?.nodes) {
+      logger.error("Failed to fetch inventory data from Shopify", { response });
+
+      if (isVapiRequest && toolCallId) {
+        return NextResponse.json(
+          {
+            results: [
+              {
+                toolCallId: toolCallId,
+                result: { error: "Failed to fetch inventory data" },
+              },
+            ],
+          },
+          {
+            status: 500,
+            headers: corsHeaders(request.headers.get("origin") || undefined),
+          }
+        );
+      }
+
       return NextResponse.json(
         { error: "Failed to fetch inventory data" },
         { status: 500 }
@@ -152,7 +393,7 @@ export async function POST(request: NextRequest) {
         id: string;
         sku: string;
         title: string;
-        inventoryQuantity: number;
+        quantityAvailable: number;
         availableForSale: boolean;
         price: { amount: string; currencyCode: string };
         product: { title: string; handle: string };
@@ -160,7 +401,7 @@ export async function POST(request: NextRequest) {
         id: node.id,
         sku: node.sku,
         title: node.title,
-        inventoryQuantity: node.inventoryQuantity,
+        inventoryQuantity: node.quantityAvailable,
         availableForSale: node.availableForSale,
         price: node.price.amount,
         currency: node.price.currencyCode,
@@ -171,27 +412,98 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    return NextResponse.json(
-      {
-        inventory: inventoryData,
-        summary: {
-          totalVariants: inventoryData.length,
-          inStock: inventoryData.filter(
-            (item: any) => item.inventoryQuantity > 0
-          ).length,
-          outOfStock: inventoryData.filter(
-            (item: any) => item.inventoryQuantity === 0
-          ).length,
-          lowStock: inventoryData.filter(
-            (item: any) =>
-              item.inventoryQuantity > 0 && item.inventoryQuantity <= 5
-          ).length,
-        },
+    const responseTime = Date.now() - startTime;
+
+    const inventoryResult = {
+      inventory: inventoryData,
+      summary: {
+        totalVariants: inventoryData.length,
+        inStock: inventoryData.filter((item: any) => item.inventoryQuantity > 0)
+          .length,
+        outOfStock: inventoryData.filter(
+          (item: any) => item.inventoryQuantity === 0
+        ).length,
+        lowStock: inventoryData.filter(
+          (item: any) =>
+            item.inventoryQuantity > 0 && item.inventoryQuantity <= 5
+        ).length,
       },
-      { headers: corsHeaders(request.headers.get("origin") || undefined) }
-    );
+    };
+
+    // Return VAPI format if this was a VAPI request
+    if (isVapiRequest && toolCallId) {
+      const vapiResponse = {
+        results: [
+          {
+            toolCallId: toolCallId,
+            result: inventoryResult,
+          },
+        ],
+      };
+
+      logger.info("✅ VAPI POST Inventory Check Response", {
+        method: request.method,
+        url: request.url,
+        statusCode: 200,
+        responseTime: `${responseTime}ms`,
+        inventoryCount: inventoryData.length,
+        toolCallId: toolCallId,
+        isVapiRequest: true,
+        responseFormat: "vapi",
+      });
+
+      return NextResponse.json(vapiResponse, {
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      });
+    }
+
+    logger.info("✅ POST Inventory Check Response", {
+      method: request.method,
+      url: request.url,
+      statusCode: 200,
+      responseTime: `${responseTime}ms`,
+      inventoryCount: inventoryData.length,
+      isVapiRequest: false,
+      responseFormat: "standard",
+    });
+
+    return NextResponse.json(inventoryResult, {
+      headers: corsHeaders(request.headers.get("origin") || undefined),
+    });
   } catch (error) {
-    console.error("Error in batch inventory check:", error);
+    logger.error("❌ Error in POST inventory check", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    // Return VAPI format if this was a VAPI request
+    if (isVapiRequest && toolCallId) {
+      const responseTime = Date.now() - startTime;
+      logger.error("❌ VAPI POST Inventory Check Error Response", {
+        method: request.method,
+        url: request.url,
+        statusCode: 500,
+        responseTime: `${responseTime}ms`,
+        toolCallId: toolCallId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return NextResponse.json(
+        {
+          results: [
+            {
+              toolCallId: toolCallId,
+              result: { error: "Internal server error" },
+            },
+          ],
+        },
+        {
+          status: 500,
+          headers: corsHeaders(request.headers.get("origin") || undefined),
+        }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       {

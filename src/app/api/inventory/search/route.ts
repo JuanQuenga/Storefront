@@ -5,24 +5,24 @@ import { logger } from "@/lib/server-logger";
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
-  logger.info("Inventory search API called", { method: "GET" });
+  logger.info("🔍 Inventory search API called", { method: "GET" });
 
   try {
     // Vapi: ALWAYS read JSON body per docs, but handle empty body gracefully
     const bodyText = await request.text();
-    logger.debug("Body text received", { bodyLength: bodyText.length });
+    logger.debug("📄 Body text received", { bodyLength: bodyText.length });
 
     // Log the HTTP request with body content
     let requestBody: any = null;
     try {
       requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
-      logger.debug("Parsed request body", { body: requestBody });
+      logger.debug("🔧 Parsed request body", { body: requestBody });
     } catch (e) {
       requestBody = bodyText; // Keep as string if JSON parsing fails
-      logger.debug("Using raw body text", { body: requestBody });
+      logger.debug("📝 Using raw body text", { body: requestBody });
     }
 
-    logger.info("HTTP Request", {
+    logger.info("🌐 HTTP Request", {
       method: request.method,
       url: request.url,
       headers: Object.fromEntries(request.headers.entries()),
@@ -44,11 +44,21 @@ export async function GET(request: NextRequest) {
     // Extract from Vapi tool call - simplified to always use toolCallList[0]
     let toolCallId: string | undefined;
     let vapiArgs: any = {};
+    let isVapiRequest = false;
 
     if (bodyJson?.message?.toolCallList?.[0]) {
+      isVapiRequest = true;
       const toolCall = bodyJson.message.toolCallList[0];
       toolCallId = toolCall.id;
       vapiArgs = toolCall.arguments || toolCall.function?.parameters || {};
+
+      logger.info("🤖 VAPI Request Detected", {
+        toolCallId: toolCallId,
+        functionName: toolCall.function?.name,
+        arguments: vapiArgs,
+        vapiMessageId: bodyJson.message?.id,
+        toolCallCount: bodyJson.message?.toolCallList?.length || 0,
+      });
     }
 
     // Fallback: Extract from query parameters if no valid body
@@ -194,12 +204,16 @@ export async function GET(request: NextRequest) {
 
     // Log successful response
     const responseTime = Date.now() - startTime;
-    logger.info("HTTP Response", {
+    logger.info("✅ HTTP Response", {
       method: request.method,
       url: request.url,
       statusCode: 200,
       responseTime: `${responseTime}ms`,
       productsFound: transformedProducts.length,
+      toolCallId: toolCallId || "unknown",
+      isVapiRequest: isVapiRequest,
+      responseFormat: "vapi",
+      resultSize: serialized.length,
     });
 
     return responseObj;
@@ -246,8 +260,12 @@ export async function GET(request: NextRequest) {
 
 // POST method for advanced search with multiple filters
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  logger.info("🔍 Inventory search API called", { method: "POST" });
+
   try {
     const rawBody = await request.json();
+    logger.debug("📄 Raw request body received", { body: rawBody });
 
     // Detect Vapi tool-call wrapper per docs: https://docs.vapi.ai/tools/custom-tools#request-format-understanding-the-tool-call-request
     const vapiMessage = rawBody?.message;
@@ -258,11 +276,28 @@ export async function POST(request: NextRequest) {
     const vapiArgs =
       vapiToolCall?.arguments || vapiToolCall?.function?.parameters || {};
 
+    if (isVapi) {
+      logger.info("🤖 VAPI POST Request Detected", {
+        toolCallId: vapiToolCall.id,
+        functionName: vapiToolCall.function?.name,
+        arguments: vapiArgs,
+        vapiMessageId: vapiMessage?.id,
+        toolCallCount: vapiMessage?.toolCallList?.length || 0,
+      });
+    }
+
     // Single, simplified shape: only { q, limit? } — limit defaults to 5
     const body = (isVapi ? vapiArgs : rawBody) || {};
     const q = (body.q ?? "").toString();
     const limit = Math.min(Number(body.limit ?? 5), 50);
     const cursor = body.cursor ?? null;
+
+    logger.debug("🔧 Processing search parameters", {
+      query: q,
+      limit,
+      cursor,
+      isVapi,
+    });
 
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
       query: q,
@@ -323,17 +358,45 @@ export async function POST(request: NextRequest) {
     // If this is a Vapi tool-call, wrap in { results: [{ toolCallId, result }] }
     if (isVapi) {
       const toolCallId = vapiToolCall.id;
-      return NextResponse.json(
-        { results: [{ toolCallId, result: payload }] },
-        { headers: corsHeaders(request.headers.get("origin") || undefined) }
-      );
+      const responseData = { results: [{ toolCallId, result: payload }] };
+
+      const responseTime = Date.now() - startTime;
+      logger.info("✅ VAPI POST Response", {
+        method: request.method,
+        url: request.url,
+        statusCode: 200,
+        responseTime: `${responseTime}ms`,
+        productsFound: transformedProducts.length,
+        toolCallId: toolCallId,
+        isVapiRequest: true,
+        responseFormat: "vapi",
+      });
+
+      return NextResponse.json(responseData, {
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      });
     }
+
+    const responseTime = Date.now() - startTime;
+    logger.info("✅ POST Response", {
+      method: request.method,
+      url: request.url,
+      statusCode: 200,
+      responseTime: `${responseTime}ms`,
+      productsFound: transformedProducts.length,
+      isVapiRequest: false,
+      responseFormat: "standard",
+    });
 
     return NextResponse.json(payload, {
       headers: corsHeaders(request.headers.get("origin") || undefined),
     });
   } catch (error) {
-    console.error("Error in advanced search:", error);
+    logger.error("❌ Error in POST search", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     // If request was from Vapi, return wrapped error
     try {
       const rawBody = await request.json();
@@ -342,6 +405,16 @@ export async function POST(request: NextRequest) {
         ? vapiMessage.toolCallList[0]
         : undefined;
       if (vapiToolCall) {
+        const responseTime = Date.now() - startTime;
+        logger.error("❌ VAPI POST Error Response", {
+          method: request.method,
+          url: request.url,
+          statusCode: 500,
+          responseTime: `${responseTime}ms`,
+          toolCallId: vapiToolCall.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
         return NextResponse.json(
           {
             results: [
@@ -358,6 +431,15 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (_) {}
+
+    const responseTime = Date.now() - startTime;
+    logger.error("❌ POST Error Response", {
+      method: request.method,
+      url: request.url,
+      statusCode: 500,
+      responseTime: `${responseTime}ms`,
+      error: error instanceof Error ? error.message : String(error),
+    });
 
     return NextResponse.json(
       { error: "Internal server error" },
