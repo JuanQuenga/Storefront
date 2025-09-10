@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -9,8 +9,8 @@ export default function Home() {
             Shopify Inventory REST API
           </h1>
           <p className="text-xl text-gray-600 mb-12">
-            A comprehensive REST API for searching and managing Shopify store inventory
-            using the Storefront API (tokenless method)
+            A comprehensive REST API for searching and managing Shopify store
+            inventory using the Storefront API (tokenless method)
           </p>
         </div>
 
@@ -36,7 +36,8 @@ export default function Home() {
               📦 Product Details
             </h2>
             <p className="text-gray-600 mb-4">
-              Get detailed information about specific products including variants.
+              Get detailed information about specific products including
+              variants.
             </p>
             <code className="text-sm text-gray-500 bg-gray-100 p-2 rounded block mb-2">
               GET /api/products/{"{id}"}
@@ -48,7 +49,8 @@ export default function Home() {
               📊 Inventory Check
             </h2>
             <p className="text-gray-600 mb-4">
-              Check real-time inventory levels and availability for product variants.
+              Check real-time inventory levels and availability for product
+              variants.
             </p>
             <code className="text-sm text-gray-500 bg-gray-100 p-2 rounded block mb-2">
               GET /api/inventory/check?ids={"{variant-ids}"}
@@ -78,13 +80,16 @@ export default function Home() {
           </h2>
           <div className="space-y-4 text-blue-800">
             <p>
-              <strong>1.</strong> Set up your environment variables in <code>.env.local</code>
+              <strong>1.</strong> Set up your environment variables in{" "}
+              <code>.env.local</code>
             </p>
             <p>
-              <strong>2.</strong> Get your Shopify Storefront access token from the admin panel
+              <strong>2.</strong> Get your Shopify Storefront access token from
+              the admin panel
             </p>
             <p>
-              <strong>3.</strong> The API will automatically connect to your Shopify store
+              <strong>3.</strong> The API will automatically connect to your
+              Shopify store
             </p>
             <p>
               <strong>4.</strong> Start making requests to the endpoints above

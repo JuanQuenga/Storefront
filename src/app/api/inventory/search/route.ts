@@ -1,20 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { shopifyClient, PRODUCT_SEARCH_QUERY } from '@/lib/shopify';
+import { NextRequest, NextResponse } from "next/server";
+import { getShopifyClient, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
+import { ProductSearchQuery, ProductSearchQueryVariables } from "@/generated/graphql";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q') || '';
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50); // Max 50 items
-    const cursor = searchParams.get('cursor');
-    const sortKey = searchParams.get('sort') || 'RELEVANCE';
-    const productType = searchParams.get('product_type');
-    const vendor = searchParams.get('vendor');
-    const tag = searchParams.get('tag');
-    const minPrice = searchParams.get('min_price');
-    const maxPrice = searchParams.get('max_price');
-    const inStock = searchParams.get('in_stock') === 'true';
-    const availableForSale = searchParams.get('available') === 'true';
+    const query = searchParams.get("q") || "";
+    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50); // Max 50 items
+    const cursor = searchParams.get("cursor");
+    const sortKey = searchParams.get("sort") || "RELEVANCE";
+    const productType = searchParams.get("product_type");
+    const vendor = searchParams.get("vendor");
+    const tag = searchParams.get("tag");
+    const minPrice = searchParams.get("min_price");
+    const maxPrice = searchParams.get("max_price");
+    const inStock = searchParams.get("in_stock") === "true";
+    const availableForSale = searchParams.get("available") === "true";
 
     // Build search query
     let searchQuery = query;
@@ -26,26 +27,25 @@ export async function GET(request: NextRequest) {
     if (tag) filters.push(`tag:${tag}`);
     if (minPrice) filters.push(`price:>=${minPrice}`);
     if (maxPrice) filters.push(`price:<=${maxPrice}`);
-    if (inStock) filters.push('inventory_quantity:>0');
+    if (inStock) filters.push("inventory_quantity:>0");
     if (availableForSale !== undefined) {
       filters.push(`available_for_sale:${availableForSale}`);
     }
 
     if (filters.length > 0) {
-      searchQuery = `${query} ${filters.join(' ')}`.trim();
+      searchQuery = `${query} ${filters.join(" ")}`.trim();
     }
 
     // Execute GraphQL query
-    const response = await shopifyClient.request(PRODUCT_SEARCH_QUERY, {
+    const response = await getShopifyClient().request(PRODUCT_SEARCH_QUERY, {
       query: searchQuery,
       first: limit,
       after: cursor || null,
-      sortKey: sortKey as any,
     });
 
     if (!response?.data?.products) {
       return NextResponse.json(
-        { error: 'Failed to fetch products' },
+        { error: "Failed to fetch products" },
         { status: 500 }
       );
     }
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const { products } = response.data;
 
     // Transform the response to a more user-friendly format
-    const transformedProducts = products.edges.map(({ node }: { node: any }) => ({
+    const transformedProducts = products.edges.map(({ node }) => ({
       id: node.id,
       title: node.title,
       handle: node.handle,
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         max: node.priceRange.maxVariantPrice.amount,
         currency: node.priceRange.minVariantPrice.currencyCode,
       },
-      variants: node.variants.edges.map(({ node: variant }: { node: any }) => ({
+      variants: node.variants.edges.map(({ node: variant }) => ({
         id: variant.id,
         title: variant.title,
         sku: variant.sku,
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
         availableForSale: variant.availableForSale,
         options: variant.selectedOptions,
       })),
-      images: node.images.edges.map(({ node: image }: { node: any }) => ({
+      images: node.images.edges.map(({ node: image }) => ({
         url: image.url,
         altText: image.altText,
       })),
@@ -90,11 +90,10 @@ export async function GET(request: NextRequest) {
         totalCount: transformedProducts.length,
       },
     });
-
   } catch (error) {
-    console.error('Error searching products:', error);
+    console.error("Error searching products:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -105,10 +104,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      query = '',
+      query = "",
       filters = {},
       pagination = {},
-      sort = 'RELEVANCE'
+      sort = "RELEVANCE",
     } = body;
 
     const limit = Math.min(pagination.limit || 20, 50);
@@ -118,37 +117,37 @@ export async function POST(request: NextRequest) {
     let searchQuery = query;
 
     const filterParts = [];
-    if (filters.productType) filterParts.push(`product_type:${filters.productType}`);
+    if (filters.productType)
+      filterParts.push(`product_type:${filters.productType}`);
     if (filters.vendor) filterParts.push(`vendor:${filters.vendor}`);
     if (filters.tag) filterParts.push(`tag:${filters.tag}`);
     if (filters.minPrice) filterParts.push(`price:>=${filters.minPrice}`);
     if (filters.maxPrice) filterParts.push(`price:<=${filters.maxPrice}`);
-    if (filters.inStock) filterParts.push('inventory_quantity:>0');
+    if (filters.inStock) filterParts.push("inventory_quantity:>0");
     if (filters.availableForSale !== undefined) {
       filterParts.push(`available_for_sale:${filters.availableForSale}`);
     }
 
     if (filterParts.length > 0) {
-      searchQuery = `${query} ${filterParts.join(' ')}`.trim();
+      searchQuery = `${query} ${filterParts.join(" ")}`.trim();
     }
 
-    const response = await shopifyClient.request(PRODUCT_SEARCH_QUERY, {
+    const response = await getShopifyClient().request(PRODUCT_SEARCH_QUERY, {
       query: searchQuery,
       first: limit,
       after: cursor || null,
-      sortKey: sort as any,
     });
 
     if (!response?.data?.products) {
       return NextResponse.json(
-        { error: 'Failed to fetch products' },
+        { error: "Failed to fetch products" },
         { status: 500 }
       );
     }
 
     const { products } = response.data;
 
-    const transformedProducts = products.edges.map(({ node }: { node: any }) => ({
+    const transformedProducts = products.edges.map(({ node }) => ({
       id: node.id,
       title: node.title,
       handle: node.handle,
@@ -161,7 +160,7 @@ export async function POST(request: NextRequest) {
         max: node.priceRange.maxVariantPrice.amount,
         currency: node.priceRange.minVariantPrice.currencyCode,
       },
-      variants: node.variants.edges.map(({ node: variant }: { node: any }) => ({
+      variants: node.variants.edges.map(({ node: variant }) => ({
         id: variant.id,
         title: variant.title,
         sku: variant.sku,
@@ -171,7 +170,7 @@ export async function POST(request: NextRequest) {
         availableForSale: variant.availableForSale,
         options: variant.selectedOptions,
       })),
-      images: node.images.edges.map(({ node: image }: { node: any }) => ({
+      images: node.images.edges.map(({ node: image }) => ({
         url: image.url,
         altText: image.altText,
       })),
@@ -185,11 +184,10 @@ export async function POST(request: NextRequest) {
         totalCount: transformedProducts.length,
       },
     });
-
   } catch (error) {
-    console.error('Error in advanced search:', error);
+    console.error("Error in advanced search:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

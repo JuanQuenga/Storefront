@@ -59,19 +59,19 @@ Search products with various filters and sorting options.
 
 #### Query Parameters
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| `q` | string | Search query | `t-shirt` |
-| `limit` | number | Results per page (max 50) | `20` |
-| `cursor` | string | Pagination cursor | `eyJsYXN0X2lkIjo...` |
-| `sort` | string | Sort order | `PRICE`, `TITLE`, `CREATED`, `RELEVANCE` |
-| `product_type` | string | Filter by product type | `Clothing` |
-| `vendor` | string | Filter by vendor | `Nike` |
-| `tag` | string | Filter by tag | `sale` |
-| `min_price` | number | Minimum price | `10.00` |
-| `max_price` | number | Maximum price | `100.00` |
-| `in_stock` | boolean | Only in-stock items | `true` |
-| `available` | boolean | Only available items | `true` |
+| Parameter      | Type    | Description               | Example                                  |
+| -------------- | ------- | ------------------------- | ---------------------------------------- |
+| `q`            | string  | Search query              | `t-shirt`                                |
+| `limit`        | number  | Results per page (max 50) | `20`                                     |
+| `cursor`       | string  | Pagination cursor         | `eyJsYXN0X2lkIjo...`                     |
+| `sort`         | string  | Sort order                | `PRICE`, `TITLE`, `CREATED`, `RELEVANCE` |
+| `product_type` | string  | Filter by product type    | `Clothing`                               |
+| `vendor`       | string  | Filter by vendor          | `Nike`                                   |
+| `tag`          | string  | Filter by tag             | `sale`                                   |
+| `min_price`    | number  | Minimum price             | `10.00`                                  |
+| `max_price`    | number  | Maximum price             | `100.00`                                 |
+| `in_stock`     | boolean | Only in-stock items       | `true`                                   |
+| `available`    | boolean | Only available items      | `true`                                   |
 
 #### Example Request
 
@@ -106,8 +106,8 @@ GET /api/inventory/search?q=t-shirt&product_type=Clothing&in_stock=true&limit=10
           "inventoryQuantity": 25,
           "availableForSale": true,
           "options": [
-            {"name": "Size", "value": "Small"},
-            {"name": "Color", "value": "White"}
+            { "name": "Size", "value": "Small" },
+            { "name": "Color", "value": "White" }
           ]
         }
       ],
@@ -160,9 +160,9 @@ Get detailed information about a specific product.
 
 #### Parameters
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| `id` | string | Product ID or handle | `gid://shopify/Product/123456789` |
+| Parameter | Type   | Description          | Example                           |
+| --------- | ------ | -------------------- | --------------------------------- |
+| `id`      | string | Product ID or handle | `gid://shopify/Product/123456789` |
 
 #### Example Request
 
@@ -178,9 +178,9 @@ Check inventory levels for specific product variants.
 
 #### Query Parameters
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| `ids` | string | Comma-separated variant IDs | `gid://shopify/ProductVariant/1,gid://shopify/ProductVariant/2` |
+| Parameter | Type   | Description                 | Example                                                         |
+| --------- | ------ | --------------------------- | --------------------------------------------------------------- |
+| `ids`     | string | Comma-separated variant IDs | `gid://shopify/ProductVariant/1,gid://shopify/ProductVariant/2` |
 
 #### Example Request
 
@@ -239,11 +239,11 @@ Browse and search through product collections.
 
 #### Query Parameters
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| `limit` | number | Results per page (max 50) | `20` |
-| `cursor` | string | Pagination cursor | `eyJsYXN0X2lkIjo...` |
-| `include_products` | boolean | Include products in response | `true` |
+| Parameter          | Type    | Description                  | Example              |
+| ------------------ | ------- | ---------------------------- | -------------------- |
+| `limit`            | number  | Results per page (max 50)    | `20`                 |
+| `cursor`           | string  | Pagination cursor            | `eyJsYXN0X2lkIjo...` |
+| `include_products` | boolean | Include products in response | `true`               |
 
 #### Example Request
 
@@ -271,6 +271,7 @@ Error responses include a descriptive message:
 ## Rate Limiting
 
 Shopify Storefront API has rate limits:
+
 - 1000 requests per minute for authenticated requests
 - 60 requests per minute for unauthenticated requests
 
@@ -288,6 +289,7 @@ The API handles rate limiting automatically and will return appropriate error me
 ### Other Platforms
 
 The API can be deployed to any platform that supports Node.js:
+
 - Heroku
 - Railway
 - DigitalOcean App Platform
@@ -299,15 +301,19 @@ The API can be deployed to any platform that supports Node.js:
 
 ```javascript
 // Search products
-const response = await fetch('/api/inventory/search?q=t-shirt&in_stock=true');
+const response = await fetch("/api/inventory/search?q=t-shirt&in_stock=true");
 const data = await response.json();
 
 // Get product details
-const productResponse = await fetch('/api/products/gid://shopify/Product/123456789');
+const productResponse = await fetch(
+  "/api/products/gid://shopify/Product/123456789"
+);
 const product = await productResponse.json();
 
 // Check inventory
-const inventoryResponse = await fetch('/api/inventory/check?ids=variant-id-1,variant-id-2');
+const inventoryResponse = await fetch(
+  "/api/inventory/check?ids=variant-id-1,variant-id-2"
+);
 const inventory = await inventoryResponse.json();
 ```
 

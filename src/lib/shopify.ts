@@ -1,22 +1,29 @@
-import { createStorefrontApiClient } from '@shopify/storefront-api-client';
-
-if (!process.env.SHOPIFY_STORE_DOMAIN) {
-  throw new Error('SHOPIFY_STORE_DOMAIN environment variable is required');
-}
-
-if (!process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN) {
-  throw new Error('SHOPIFY_STOREFRONT_ACCESS_TOKEN environment variable is required');
-}
+import { createStorefrontApiClient } from "@shopify/storefront-api-client";
+import gql from "graphql-tag";
 
 // Initialize the Storefront API client
-export const shopifyClient = createStorefrontApiClient({
-  storeDomain: process.env.SHOPIFY_STORE_DOMAIN,
-  accessToken: process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN,
-  apiVersion: process.env.SHOPIFY_API_VERSION || '2024-04',
-});
+export const shopifyClient =
+  process.env.SHOPIFY_STORE_DOMAIN &&
+  process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN
+    ? createStorefrontApiClient({
+        storeDomain: process.env.SHOPIFY_STORE_DOMAIN,
+        publicAccessToken: process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN,
+        apiVersion: process.env.SHOPIFY_API_VERSION || "2024-04",
+      } as any)
+    : null;
 
-// GraphQL queries
-export const PRODUCT_SEARCH_QUERY = `
+// Function to get the client with validation
+export function getShopifyClient() {
+  if (!shopifyClient) {
+    throw new Error(
+      "Shopify client not initialized. Please check your environment variables."
+    );
+  }
+  return shopifyClient;
+}
+
+// GraphQL queries using gql template literals
+export const PRODUCT_SEARCH_QUERY = gql`
   query ProductSearch($query: String!, $first: Int!, $after: String) {
     products(query: $query, first: $first, after: $after) {
       edges {
@@ -79,7 +86,7 @@ export const PRODUCT_SEARCH_QUERY = `
   }
 `;
 
-export const PRODUCT_BY_ID_QUERY = `
+export const PRODUCT_BY_ID_QUERY = gql`
   query ProductById($id: ID!) {
     product(id: $id) {
       id
@@ -147,7 +154,7 @@ export const PRODUCT_BY_ID_QUERY = `
   }
 `;
 
-export const INVENTORY_QUERY = `
+export const INVENTORY_QUERY = gql`
   query InventoryItems($ids: [ID!]!) {
     nodes(ids: $ids) {
       ... on ProductVariant {
@@ -169,7 +176,7 @@ export const INVENTORY_QUERY = `
   }
 `;
 
-export const COLLECTIONS_QUERY = `
+export const COLLECTIONS_QUERY = gql`
   query Collections($first: Int!, $after: String) {
     collections(first: $first, after: $after) {
       edges {

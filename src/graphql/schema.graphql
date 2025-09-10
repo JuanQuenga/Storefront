@@ -1,0 +1,130 @@
+# Basic Shopify Storefront API Schema
+# This is a simplified version for code generation
+
+scalar DateTime
+scalar URL
+scalar Decimal
+scalar Money
+
+type Query {
+  products(query: String, first: Int, after: String): ProductConnection!
+  product(id: ID!): Product
+  collections(first: Int, after: String): CollectionConnection!
+  nodes(ids: [ID!]!): [Node!]!
+}
+
+interface Node {
+  id: ID!
+}
+
+type ProductConnection {
+  edges: [ProductEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductEdge {
+  node: Product!
+}
+
+type Product implements Node {
+  id: ID!
+  title: String!
+  handle: String!
+  description: String
+  productType: String!
+  tags: [String!]!
+  vendor: String!
+  priceRange: ProductPriceRange!
+  variants(first: Int): ProductVariantConnection!
+  images(first: Int): ImageConnection!
+  collections(first: Int): CollectionConnection!
+}
+
+type ProductPriceRange {
+  minVariantPrice: MoneyV2!
+  maxVariantPrice: MoneyV2!
+}
+
+type MoneyV2 {
+  amount: Decimal!
+  currencyCode: CurrencyCode!
+}
+
+enum CurrencyCode {
+  USD
+  EUR
+  GBP
+  CAD
+  AUD
+}
+
+type ProductVariantConnection {
+  edges: [ProductVariantEdge!]!
+}
+
+type ProductVariantEdge {
+  node: ProductVariant!
+}
+
+type ProductVariant implements Node {
+  id: ID!
+  title: String!
+  sku: String
+  price: MoneyV2!
+  compareAtPrice: MoneyV2
+  inventoryQuantity: Int!
+  availableForSale: Boolean!
+  weight: Float
+  weightUnit: WeightUnit
+  selectedOptions: [SelectedOption!]!
+  product: Product!
+}
+
+enum WeightUnit {
+  GRAMS
+  KILOGRAMS
+  OUNCES
+  POUNDS
+}
+
+type SelectedOption {
+  name: String!
+  value: String!
+}
+
+type ImageConnection {
+  edges: [ImageEdge!]!
+}
+
+type ImageEdge {
+  node: Image!
+}
+
+type Image {
+  url: URL!
+  altText: String
+  width: Int
+  height: Int
+}
+
+type CollectionConnection {
+  edges: [CollectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type CollectionEdge {
+  node: Collection!
+}
+
+type Collection implements Node {
+  id: ID!
+  title: String!
+  handle: String!
+  description: String
+  products(first: Int): ProductConnection!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
