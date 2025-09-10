@@ -4,173 +4,29 @@ import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 import { logger } from "@/lib/server-logger";
 
 export async function GET(request: NextRequest) {
-  const startTime = Date.now();
-
-  // 🚨 COMPREHENSIVE REQUEST LOGGING 🚨
-  const requestId = `req_${Date.now()}_${Math.random()
-    .toString(36)
-    .substr(2, 9)}`;
-
-  logger.info("🚨 === NEW REQUEST START ===", {
-    requestId,
-    timestamp: new Date().toISOString(),
+  // Log raw incoming request
+  const rawBody = await request.text();
+  logger.info("Raw incoming request", {
     method: request.method,
     url: request.url,
-    userAgent: request.headers.get("user-agent"),
-    contentType: request.headers.get("content-type"),
-    contentLength: request.headers.get("content-length"),
-    origin: request.headers.get("origin"),
-    referer: request.headers.get("referer"),
-  });
-
-  // Log ALL headers
-  const allHeaders = Object.fromEntries(request.headers.entries());
-  logger.info("📋 ALL REQUEST HEADERS", {
-    requestId,
-    headers: allHeaders,
-    headerCount: Object.keys(allHeaders).length,
-  });
-
-  // Log URL details
-  const url = new URL(request.url);
-  logger.info("🔗 REQUEST URL DETAILS", {
-    requestId,
-    fullUrl: request.url,
-    pathname: url.pathname,
-    search: url.search,
-    searchParams: Object.fromEntries(url.searchParams.entries()),
-    queryParamCount: url.searchParams.size,
+    headers: Object.fromEntries(request.headers.entries()),
+    body: rawBody,
   });
 
   try {
-    // 🔍 RAW BODY ANALYSIS 🔍
-    logger.info("🔍 ANALYZING REQUEST BODY", {
-      requestId,
-      contentType: request.headers.get("content-type"),
-      contentLength: request.headers.get("content-length"),
-      hasBody: request.body !== null,
-    });
-
-    // First, try to get raw body as text for complete analysis
-    let rawBodyText: string;
-    try {
-      rawBodyText = await request.text();
-      logger.info("📄 RAW BODY TEXT CAPTURED", {
-        requestId,
-        bodyLength: rawBodyText.length,
-        bodyPreview: rawBodyText.substring(0, 500), // First 500 chars
-        isEmpty: rawBodyText.trim().length === 0,
-        startsWithBrace: rawBodyText.trim().startsWith("{"),
-        startsWithBracket: rawBodyText.trim().startsWith("["),
-        containsNewlines: rawBodyText.includes("\n"),
-        containsTabs: rawBodyText.includes("\t"),
-      });
-    } catch (textError) {
-      logger.error("❌ FAILED TO READ RAW BODY TEXT", {
-        requestId,
-        error:
-          textError instanceof Error ? textError.message : String(textError),
-      });
-      rawBodyText = "";
-    }
-
-    // Vapi: Read JSON body directly for better performance and proper handling
+    // Parse request body
     let requestBody: any = null;
     let bodyJson = null;
-    let parseMethod = "unknown";
 
-    if (rawBodyText.trim().length > 0) {
+    if (rawBody.trim().length > 0) {
       try {
-        // Try to read as JSON first (most common case for VAPI)
-        logger.debug("🔄 ATTEMPTING JSON PARSE", {
-          requestId,
-          bodyLength: rawBodyText.length,
-          contentType: request.headers.get("content-type"),
-        });
-
-        requestBody = JSON.parse(rawBodyText);
+        requestBody = JSON.parse(rawBody);
         bodyJson = requestBody;
-
-        logger.info("✅ JSON PARSE SUCCESS", {
-          requestId,
-          bodyType: typeof requestBody,
-          isArray: Array.isArray(requestBody),
-          topLevelKeys: Object.keys(requestBody),
-          hasMessage: !!requestBody.message,
-          hasToolCallList: !!requestBody.message?.toolCallList,
-          toolCallCount: requestBody.message?.toolCallList?.length || 0,
-        });
       } catch (jsonError) {
-        logger.warn("⚠️ DIRECT JSON PARSE FAILED", {
-          requestId,
-          error:
-            jsonError instanceof Error ? jsonError.message : String(jsonError),
-          attemptingTextFallback: true,
-        });
-
-        try {
-          // If JSON parsing fails, we already have the text
-          requestBody = rawBodyText;
-          bodyJson = null;
-          parseMethod = "raw-text";
-
-          logger.info("📝 FALLBACK TO RAW TEXT", {
-            requestId,
-            textLength: rawBodyText.length,
-            firstChars: rawBodyText.substring(0, 100),
-          });
-        } catch (textError) {
-          logger.error("❌ TEXT FALLBACK ALSO FAILED", {
-            requestId,
-            error:
-              textError instanceof Error
-                ? textError.message
-                : String(textError),
-          });
-          requestBody = null;
-          bodyJson = null;
-          parseMethod = "failed";
-        }
+        requestBody = rawBody;
+        bodyJson = null;
       }
-    } else {
-      logger.info("📭 EMPTY REQUEST BODY", {
-        requestId,
-        note: "No body content detected",
-      });
-      requestBody = null;
-      bodyJson = null;
-      parseMethod = "empty";
     }
-
-    logger.info("📊 REQUEST BODY SUMMARY", {
-      requestId,
-      parseMethod,
-      hasBody: requestBody !== null,
-      hasJson: bodyJson !== null,
-      bodyType: typeof requestBody,
-      isArray: Array.isArray(requestBody),
-      contentLength: request.headers.get("content-length"),
-      actualLength: rawBodyText?.length || 0,
-    });
-
-    // 🔍 VAPI DETECTION ANALYSIS 🔍
-    logger.info("🔍 ANALYZING FOR VAPI REQUEST", {
-      requestId,
-      hasJsonBody: !!bodyJson,
-      hasMessage: !!bodyJson?.message,
-      hasToolCallList: !!bodyJson?.message?.toolCallList,
-      toolCallListLength: bodyJson?.message?.toolCallList?.length || 0,
-      firstToolCall: bodyJson?.message?.toolCallList?.[0]
-        ? {
-            id: bodyJson.message.toolCallList[0].id,
-            type: bodyJson.message.toolCallList[0].type,
-            functionName: bodyJson.message.toolCallList[0].function?.name,
-            hasArguments: !!bodyJson.message.toolCallList[0].arguments,
-            hasParameters:
-              !!bodyJson.message.toolCallList[0].function?.parameters,
-          }
-        : null,
-    });
 
     // Extract from Vapi tool call - simplified to always use toolCallList[0]
     let toolCallId: string | undefined;
@@ -182,33 +38,7 @@ export async function GET(request: NextRequest) {
       const toolCall = bodyJson.message.toolCallList[0];
       toolCallId = toolCall.id;
       vapiArgs = toolCall.arguments || toolCall.function?.parameters || {};
-
-      logger.info("🤖 VAPI REQUEST CONFIRMED", {
-        requestId,
-        toolCallId: toolCallId,
-        functionName: toolCall.function?.name,
-        arguments: vapiArgs,
-        argumentsKeys: Object.keys(vapiArgs),
-        vapiMessageId: bodyJson.message?.id,
-        toolCallCount: bodyJson.message?.toolCallList?.length || 0,
-        fullToolCall: toolCall,
-      });
-    } else {
-      logger.info("❌ NOT A VAPI REQUEST", {
-        requestId,
-        reason: bodyJson ? "No toolCallList found in message" : "No JSON body",
-        hasJsonBody: !!bodyJson,
-        hasMessage: !!bodyJson?.message,
-      });
     }
-
-    // 📋 QUERY PARAMETER PROCESSING 📋
-    logger.info("📋 PROCESSING QUERY PARAMETERS", {
-      requestId,
-      isVapiRequest,
-      toolCallId: toolCallId || "none",
-      hasVapiArgs: !!vapiArgs && Object.keys(vapiArgs).length > 0,
-    });
 
     // Fallback: Extract from query parameters if no valid body
     if (!toolCallId) {
@@ -218,52 +48,19 @@ export async function GET(request: NextRequest) {
       const limit = url.searchParams.get("limit");
       const cursor = url.searchParams.get("cursor");
 
-      logger.info("🔍 CHECKING QUERY PARAMETERS", {
-        requestId,
-        queryParam: query,
-        limitParam: limit,
-        cursorParam: cursor,
-        hasAnyParams: !!(query || limit || cursor),
-      });
-
       // Check if there's a message parameter with JSON
       const messageParam = url.searchParams.get("message");
       if (messageParam) {
-        logger.info("📨 FOUND MESSAGE QUERY PARAMETER", {
-          requestId,
-          messageParamLength: messageParam.length,
-          messageParamPreview: messageParam.substring(0, 100),
-        });
-
         try {
           const decodedMessage = JSON.parse(decodeURIComponent(messageParam));
-          logger.info("📨 DECODED MESSAGE PARAMETER", {
-            requestId,
-            decodedMessageKeys: Object.keys(decodedMessage),
-            hasToolCallList: !!decodedMessage.toolCallList,
-            toolCallListLength: decodedMessage.toolCallList?.length || 0,
-          });
-
           if (decodedMessage.toolCallList && decodedMessage.toolCallList[0]) {
             const toolCall = decodedMessage.toolCallList[0];
             toolCallId = toolCall.id;
             vapiArgs =
               toolCall.arguments || toolCall.function?.parameters || {};
-
-            logger.info("✅ VAPI DETECTED FROM QUERY PARAM", {
-              requestId,
-              toolCallId: toolCallId,
-              functionName: toolCall.function?.name,
-              arguments: vapiArgs,
-              source: "query-param-message",
-            });
           }
         } catch (e) {
-          logger.warn("❌ FAILED TO PARSE MESSAGE QUERY PARAM", {
-            requestId,
-            error: e instanceof Error ? e.message : String(e),
-            rawMessageParam: messageParam.substring(0, 200),
-          });
+          // Ignore parse errors
         }
       }
 
@@ -275,70 +72,21 @@ export async function GET(request: NextRequest) {
           limit: limit ? parseInt(limit) : undefined,
           cursor: cursor || undefined,
         };
-
-        logger.info("🔄 USING QUERY PARAMS FALLBACK", {
-          requestId,
-          toolCallId: toolCallId,
-          query,
-          limit: limit ? parseInt(limit) : undefined,
-          cursor: cursor || undefined,
-        });
       }
     }
 
-    // 🎯 FINAL PARAMETER RESOLUTION 🎯
+    // Final parameter resolution
     const finalQuery = vapiArgs.q || "";
     const finalLimit = Math.min(parseInt(String(vapiArgs.limit ?? 5)), 50);
     const finalCursor = vapiArgs.cursor || null;
-
-    logger.info("🎯 FINAL SEARCH PARAMETERS", {
-      requestId,
-      query: finalQuery,
-      limit: finalLimit,
-      cursor: finalCursor,
-      toolCallId: toolCallId || "none",
-      isVapiRequest,
-      source: toolCallId === "query-params-fallback" ? "query-params" : "vapi",
-    });
-
-    logger.debug("🔄 EXECUTING SHOPIFY REQUEST", {
-      requestId,
-      query: finalQuery,
-      limit: finalLimit,
-      cursor: finalCursor,
-      isVapiRequest,
-    });
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
       query: finalQuery,
       first: finalLimit,
       after: finalCursor,
     });
 
-    logger.info("🏪 SHOPIFY RESPONSE RECEIVED", {
-      requestId,
-      hasData: !!response?.data,
-      hasProducts: !!response?.data?.products,
-      productsCount: response?.data?.products?.edges?.length || 0,
-      hasNextPage: response?.data?.products?.pageInfo?.hasNextPage,
-      endCursor: response?.data?.products?.pageInfo?.endCursor,
-    });
-
     if (!response?.data?.products) {
-      logger.error("❌ SHOPIFY REQUEST FAILED", {
-        requestId,
-        response: response,
-        error: "No products data in response",
-      });
-
       const errorResult = JSON.stringify({ error: "Failed to fetch products" });
-
-      logger.info("📤 SENDING ERROR RESPONSE", {
-        requestId,
-        toolCallId: toolCallId || "unknown",
-        errorResult,
-        responseFormat: "vapi",
-      });
-
       return NextResponse.json(
         {
           results: [
@@ -395,14 +143,6 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    logger.info("🔄 PRODUCT TRANSFORMATION COMPLETED", {
-      requestId,
-      rawProductCount: products.edges.length,
-      transformedProductCount: transformedProducts.length,
-      limitRequested: finalLimit,
-      productsReturned: Math.min(transformedProducts.length, finalLimit),
-    });
-
     // Always return Vapi response format
     const resultData = {
       query: finalQuery,
@@ -429,355 +169,59 @@ export async function GET(request: NextRequest) {
         })),
       })),
     };
-    logger.info("📦 BUILDING RESPONSE DATA", {
-      requestId,
-      resultDataKeys: Object.keys(resultData),
-      totalFound: resultData.totalFound,
-      productsInResponse: resultData.products.length,
-      hasQuery: !!resultData.query,
-    });
 
     const serialized = JSON.stringify(resultData);
-
-    logger.info("📄 RESPONSE SERIALIZATION", {
-      requestId,
-      serializedLength: serialized.length,
-      compressionRatio: serialized.length / JSON.stringify(resultData).length,
-    });
-
     const responseData = {
       results: [{ toolCallId: toolCallId || "unknown", result: serialized }],
     };
 
-    logger.info("🎯 FINAL RESPONSE STRUCTURE", {
-      requestId,
-      toolCallId: toolCallId || "unknown",
-      resultType: typeof serialized,
-      resultLength: serialized.length,
-      responseFormat: "vapi",
-      isVapiRequest,
-    });
-
-    const responseObj = NextResponse.json(responseData, {
+    return NextResponse.json(responseData, {
       headers: corsHeaders(request.headers.get("origin") || undefined),
     });
-
-    // 🎉 REQUEST COMPLETED SUCCESSFULLY 🎉
-    const responseTime = Date.now() - startTime;
-    logger.info("🎉 === REQUEST COMPLETED SUCCESSFULLY ===", {
-      requestId,
-      method: request.method,
-      url: request.url,
-      statusCode: 200,
-      responseTime: `${responseTime}ms`,
-      productsFound: transformedProducts.length,
-      toolCallId: toolCallId || "unknown",
-      isVapiRequest: isVapiRequest,
-      responseFormat: "vapi",
-      resultSize: serialized.length,
-      processingTimeMs: responseTime,
-    });
-
-    return responseObj;
   } catch (error) {
-    // 🚨 COMPREHENSIVE ERROR LOGGING 🚨
-    const responseTime = Date.now() - startTime;
-
-    logger.error("💥 === REQUEST FAILED WITH ERROR ===", {
-      requestId,
-      method: request.method,
-      url: request.url,
-      responseTime: `${responseTime}ms`,
+    logger.error("Request failed", {
       error: error instanceof Error ? error.message : String(error),
-      errorType: error instanceof Error ? error.constructor.name : typeof error,
-      stack: error instanceof Error ? error.stack : undefined,
-      hasStack: error instanceof Error && !!error.stack,
     });
-
-    // Extract toolCallId from request body for error response
-    let errorToolCallId = "unknown";
-    logger.info("🔍 EXTRACTING TOOL CALL ID FOR ERROR RESPONSE", {
-      requestId,
-      attemptingBodyParse: true,
-    });
-
-    try {
-      const bodyText = await request.text();
-      logger.debug("📄 ERROR RESPONSE: BODY TEXT CAPTURED", {
-        requestId,
-        bodyLength: bodyText.length,
-        hasContent: bodyText.trim().length > 0,
-      });
-
-      if (bodyText.trim()) {
-        const bodyJson = JSON.parse(bodyText);
-        logger.debug("📄 ERROR RESPONSE: BODY PARSED", {
-          requestId,
-          hasMessage: !!bodyJson?.message,
-          hasToolCallList: !!bodyJson?.message?.toolCallList,
-          toolCallListLength: bodyJson?.message?.toolCallList?.length || 0,
-        });
-
-        if (bodyJson?.message?.toolCallList?.[0]) {
-          errorToolCallId = bodyJson.message.toolCallList[0].id;
-          logger.info("✅ ERROR RESPONSE: TOOL CALL ID EXTRACTED", {
-            requestId,
-            toolCallId: errorToolCallId,
-            source: "request-body",
-          });
-        } else {
-          logger.info("❌ ERROR RESPONSE: NO TOOL CALL ID FOUND", {
-            requestId,
-            reason: "No toolCallList in message",
-          });
-        }
-      } else {
-        logger.info("📭 ERROR RESPONSE: EMPTY BODY", {
-          requestId,
-          note: "No body content to parse",
-        });
-      }
-    } catch (parseError) {
-      logger.warn("⚠️ ERROR RESPONSE: BODY PARSE FAILED", {
-        requestId,
-        parseError:
-          parseError instanceof Error ? parseError.message : String(parseError),
-        fallbackToolCallId: errorToolCallId,
-      });
-    }
 
     const errorResult = JSON.stringify({ error: "Internal server error" });
     const errorResponseData = {
-      results: [{ toolCallId: errorToolCallId, result: errorResult }],
+      results: [{ toolCallId: "unknown", result: errorResult }],
     };
 
-    logger.info("📤 SENDING ERROR RESPONSE", {
-      requestId,
-      toolCallId: errorToolCallId,
-      errorResult,
-      responseFormat: "vapi",
-      statusCode: 500,
-    });
-
-    const errorResponseObj = NextResponse.json(errorResponseData, {
+    return NextResponse.json(errorResponseData, {
       status: 500,
       headers: corsHeaders(request.headers.get("origin") || undefined),
     });
-
-    logger.error("🚨 === ERROR RESPONSE SENT ===", {
-      requestId,
-      method: request.method,
-      url: request.url,
-      statusCode: 500,
-      responseTime: `${responseTime}ms`,
-      toolCallId: errorToolCallId,
-      error: error instanceof Error ? error.message : String(error),
-      processingTimeMs: responseTime,
-    });
-
-    return errorResponseObj;
   }
 }
 
 // POST method for advanced search with multiple filters
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-
-  // 🚨 COMPREHENSIVE REQUEST LOGGING FOR POST 🚨
-  const requestId = `req_${Date.now()}_${Math.random()
-    .toString(36)
-    .substr(2, 9)}`;
-
-  let toolCallId: string | undefined;
-  const isVapiRequest = false;
-
-  logger.info("🚨 === POST REQUEST START ===", {
-    requestId,
-    timestamp: new Date().toISOString(),
+  // Log raw incoming request
+  const rawBody = await request.text();
+  logger.info("Raw incoming POST request", {
     method: request.method,
     url: request.url,
-    userAgent: request.headers.get("user-agent"),
-    contentType: request.headers.get("content-type"),
-    contentLength: request.headers.get("content-length"),
-    origin: request.headers.get("origin"),
-    referer: request.headers.get("referer"),
-  });
-
-  // Log ALL headers
-  const allHeaders = Object.fromEntries(request.headers.entries());
-  logger.info("📋 POST REQUEST HEADERS", {
-    requestId,
-    headers: allHeaders,
-    headerCount: Object.keys(allHeaders).length,
-  });
-
-  // Log URL details
-  const url = new URL(request.url);
-  logger.info("🔗 POST REQUEST URL DETAILS", {
-    requestId,
-    fullUrl: request.url,
-    pathname: url.pathname,
-    search: url.search,
-    searchParams: Object.fromEntries(url.searchParams.entries()),
-    queryParamCount: url.searchParams.size,
+    headers: Object.fromEntries(request.headers.entries()),
+    body: rawBody,
   });
 
   try {
-    // 🔍 RAW BODY ANALYSIS FOR POST 🔍
-    logger.info("🔍 ANALYZING POST REQUEST BODY", {
-      requestId,
-      contentType: request.headers.get("content-type"),
-      contentLength: request.headers.get("content-length"),
-      hasBody: request.body !== null,
-    });
-
-    // First, try to get raw body as text for complete analysis
-    let rawBodyText: string;
-    try {
-      rawBodyText = await request.text();
-      logger.info("📄 RAW POST BODY TEXT CAPTURED", {
-        requestId,
-        bodyLength: rawBodyText.length,
-        bodyPreview: rawBodyText.substring(0, 500), // First 500 chars
-        isEmpty: rawBodyText.trim().length === 0,
-        startsWithBrace: rawBodyText.trim().startsWith("{"),
-        startsWithBracket: rawBodyText.trim().startsWith("["),
-        containsNewlines: rawBodyText.includes("\n"),
-        containsTabs: rawBodyText.includes("\t"),
-      });
-    } catch (textError) {
-      logger.error("❌ FAILED TO READ RAW POST BODY TEXT", {
-        requestId,
-        error:
-          textError instanceof Error ? textError.message : String(textError),
-      });
-      rawBodyText = "";
-    }
-
-    // ✅ CONTENT TYPE VALIDATION FOR JSON PARSING ✅
-    const contentType = request.headers.get("content-type") || "";
-    const isJsonContentType =
-      contentType.toLowerCase().includes("application/json") ||
-      contentType.toLowerCase().includes("text/json") ||
-      contentType.toLowerCase().includes("application/javascript");
-
-    logger.info("🎯 CONTENT TYPE ANALYSIS FOR POST", {
-      requestId,
-      contentType: contentType,
-      isJsonContentType: isJsonContentType,
-      normalizedContentType: contentType.toLowerCase(),
-      willAttemptJsonParse: rawBodyText.trim().length > 0 && isJsonContentType,
-      contentTypeContainsJson: contentType.toLowerCase().includes("json"),
-    });
-
-    // Vapi: Read JSON body directly for better performance and proper handling
+    // Parse request body
     let requestBody: any = null;
     let bodyJson = null;
-    let parseMethod = "unknown";
 
-    if (rawBodyText.trim().length > 0) {
-      if (isJsonContentType) {
-        // ✅ Content type indicates JSON - attempt JSON parsing
-        try {
-          logger.debug(
-            "🔄 ATTEMPTING JSON PARSE ON POST (VALID CONTENT TYPE)",
-            {
-              requestId,
-              bodyLength: rawBodyText.length,
-              contentType: contentType,
-              isJsonContentType: true,
-            }
-          );
-
-          requestBody = JSON.parse(rawBodyText);
-          bodyJson = requestBody;
-          parseMethod = "json-content-type";
-
-          logger.info("✅ POST JSON PARSE SUCCESS (VALID CONTENT TYPE)", {
-            requestId,
-            bodyType: typeof requestBody,
-            isArray: Array.isArray(requestBody),
-            topLevelKeys: Object.keys(requestBody),
-            hasMessage: !!requestBody.message,
-            hasToolCallList: !!requestBody.message?.toolCallList,
-            toolCallCount: requestBody.message?.toolCallList?.length || 0,
-            contentType: contentType,
-          });
-        } catch (jsonError) {
-          logger.warn("⚠️ JSON PARSE FAILED WITH VALID CONTENT TYPE", {
-            requestId,
-            error:
-              jsonError instanceof Error
-                ? jsonError.message
-                : String(jsonError),
-            contentType: contentType,
-            bodyPreview: rawBodyText.substring(0, 200),
-            attemptingTextFallback: true,
-          });
-
-          // Even though content type says JSON, parsing failed - keep as text
-          requestBody = rawBodyText;
-          bodyJson = null;
-          parseMethod = "json-content-type-but-invalid";
-        }
-      } else {
-        // ⚠️ Content type does NOT indicate JSON - keep as raw text
-        logger.warn("⚠️ NON-JSON CONTENT TYPE - SKIPPING JSON PARSE", {
-          requestId,
-          contentType: contentType,
-          isJsonContentType: false,
-          bodyLength: rawBodyText.length,
-          bodyPreview: rawBodyText.substring(0, 200),
-          keepingAsRawText: true,
-        });
-
-        requestBody = rawBodyText;
+    if (rawBody.trim().length > 0) {
+      try {
+        requestBody = JSON.parse(rawBody);
+        bodyJson = requestBody;
+      } catch (jsonError) {
+        requestBody = rawBody;
         bodyJson = null;
-        parseMethod = "non-json-content-type";
       }
-    } else {
-      logger.info("📭 EMPTY POST REQUEST BODY", {
-        requestId,
-        note: "No body content detected",
-        contentType: contentType,
-        isJsonContentType: isJsonContentType,
-      });
-      requestBody = null;
-      bodyJson = null;
-      parseMethod = "empty";
     }
 
-    logger.info("📊 POST REQUEST BODY SUMMARY", {
-      requestId,
-      parseMethod,
-      hasBody: requestBody !== null,
-      hasJson: bodyJson !== null,
-      bodyType: typeof requestBody,
-      isArray: Array.isArray(requestBody),
-      contentLength: request.headers.get("content-length"),
-      actualLength: rawBodyText?.length || 0,
-    });
-
-    // 🔍 VAPI DETECTION ANALYSIS FOR POST 🔍
-    logger.info("🔍 ANALYZING POST FOR VAPI REQUEST", {
-      requestId,
-      hasJsonBody: !!bodyJson,
-      hasMessage: !!bodyJson?.message,
-      hasToolCallList: !!bodyJson?.message?.toolCallList,
-      toolCallListLength: bodyJson?.message?.toolCallList?.length || 0,
-      firstToolCall: bodyJson?.message?.toolCallList?.[0]
-        ? {
-            id: bodyJson.message.toolCallList[0].id,
-            type: bodyJson.message.toolCallList[0].type,
-            functionName: bodyJson.message.toolCallList[0].function?.name,
-            hasArguments: !!bodyJson.message.toolCallList[0].arguments,
-            hasParameters:
-              !!bodyJson.message.toolCallList[0].function?.parameters,
-          }
-        : null,
-    });
-
-    // Detect Vapi tool-call wrapper per docs: https://docs.vapi.ai/tools/custom-tools#request-format-understanding-the-tool-call-request
+    // Detect Vapi tool-call wrapper
     const vapiMessage = requestBody?.message;
     const vapiToolCall = Array.isArray(vapiMessage?.toolCallList)
       ? vapiMessage.toolCallList[0]
@@ -786,75 +230,16 @@ export async function POST(request: NextRequest) {
     const vapiArgs =
       vapiToolCall?.arguments || vapiToolCall?.function?.parameters || {};
 
-    if (isVapi) {
-      logger.info("🤖 VAPI POST REQUEST CONFIRMED", {
-        requestId,
-        toolCallId: vapiToolCall.id,
-        functionName: vapiToolCall.function?.name,
-        arguments: vapiArgs,
-        argumentsKeys: Object.keys(vapiArgs),
-        vapiMessageId: vapiMessage?.id,
-        toolCallCount: vapiMessage?.toolCallList?.length || 0,
-        fullToolCall: vapiToolCall,
-      });
-    } else {
-      logger.info("❌ POST REQUEST NOT VAPI", {
-        requestId,
-        reason: bodyJson ? "No toolCallList found in message" : "No JSON body",
-        hasJsonBody: !!bodyJson,
-        hasMessage: !!bodyJson?.message,
-      });
-    }
-
     // Single, simplified shape: only { q, limit? } — limit defaults to 5
     const body = (isVapi ? vapiArgs : requestBody) || {};
     const q = (body.q ?? "").toString();
     const limit = Math.min(Number(body.limit ?? 5), 50);
     const cursor = body.cursor ?? null;
 
-    // 🎯 FINAL PARAMETER RESOLUTION FOR POST 🎯
-    const finalQuery = q;
-    const finalLimit = limit;
-    const finalCursor = cursor;
-
-    logger.info("🎯 POST FINAL SEARCH PARAMETERS", {
-      requestId,
-      query: finalQuery,
-      limit: finalLimit,
-      cursor: finalCursor,
-      toolCallId: toolCallId || "none",
-      isVapiRequest,
-      source: toolCallId === "query-params-fallback" ? "query-params" : "vapi",
-    });
-
-    logger.debug("🔧 Processing search parameters", {
-      query: q,
-      limit,
-      cursor,
-      isVapi,
-    });
-
-    logger.debug("🔄 EXECUTING SHOPIFY REQUEST FOR POST", {
-      requestId,
-      query: finalQuery,
-      limit: finalLimit,
-      cursor: finalCursor,
-      isVapiRequest,
-    });
-
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
-      query: finalQuery,
-      first: finalLimit,
-      after: finalCursor,
-    });
-
-    logger.info("🏪 SHOPIFY RESPONSE RECEIVED FOR POST", {
-      requestId,
-      hasData: !!response?.data,
-      hasProducts: !!response?.data?.products,
-      productsCount: response?.data?.products?.edges?.length || 0,
-      hasNextPage: response?.data?.products?.pageInfo?.hasNextPage,
-      endCursor: response?.data?.products?.pageInfo?.endCursor,
+      query: q,
+      first: limit,
+      after: cursor,
     });
 
     if (!response?.data?.products) {
@@ -912,89 +297,16 @@ export async function POST(request: NextRequest) {
       const toolCallId = vapiToolCall.id;
       const responseData = { results: [{ toolCallId, result: payload }] };
 
-      const responseTime = Date.now() - startTime;
-      logger.info("🎉 === POST REQUEST COMPLETED SUCCESSFULLY ===", {
-        requestId,
-        method: request.method,
-        url: request.url,
-        statusCode: 200,
-        responseTime: `${responseTime}ms`,
-        productsFound: transformedProducts.length,
-        toolCallId: toolCallId,
-        isVapiRequest: true,
-        responseFormat: "vapi",
-        resultSize: JSON.stringify(payload).length,
-        processingTimeMs: responseTime,
-      });
-
       return NextResponse.json(responseData, {
         headers: corsHeaders(request.headers.get("origin") || undefined),
       });
     }
 
-    const responseTime = Date.now() - startTime;
-    logger.info("🎉 === POST REQUEST COMPLETED SUCCESSFULLY ===", {
-      requestId,
-      method: request.method,
-      url: request.url,
-      statusCode: 200,
-      responseTime: `${responseTime}ms`,
-      productsFound: transformedProducts.length,
-      isVapiRequest: false,
-      responseFormat: "standard",
-      processingTimeMs: responseTime,
-    });
-
     return NextResponse.json(payload, {
       headers: corsHeaders(request.headers.get("origin") || undefined),
     });
   } catch (error) {
-    logger.error("❌ Error in POST search", {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-
-    // If request was from Vapi, return wrapped error
-    try {
-      const rawBody = await request.json();
-      const vapiMessage = rawBody?.message;
-      const vapiToolCall = Array.isArray(vapiMessage?.toolCallList)
-        ? vapiMessage.toolCallList[0]
-        : undefined;
-      if (vapiToolCall) {
-        const responseTime = Date.now() - startTime;
-        logger.error("❌ VAPI POST Error Response", {
-          method: request.method,
-          url: request.url,
-          statusCode: 500,
-          responseTime: `${responseTime}ms`,
-          toolCallId: vapiToolCall.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-
-        return NextResponse.json(
-          {
-            results: [
-              {
-                toolCallId: vapiToolCall.id,
-                result: { error: "Internal server error" },
-              },
-            ],
-          },
-          {
-            status: 500,
-            headers: corsHeaders(request.headers.get("origin") || undefined),
-          }
-        );
-      }
-    } catch (_) {}
-
-    const responseTime = Date.now() - startTime;
-    logger.error("❌ POST Error Response", {
-      method: request.method,
-      url: request.url,
-      statusCode: 500,
-      responseTime: `${responseTime}ms`,
+    logger.error("POST request failed", {
       error: error instanceof Error ? error.message : String(error),
     });
 
