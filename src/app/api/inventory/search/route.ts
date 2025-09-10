@@ -5,80 +5,24 @@ import { logger } from "@/lib/server-logger";
 
 export async function GET(request: NextRequest) {
   // Log raw incoming request
-  const rawBody = await request.text();
-  logger.info("Raw incoming request", {
+  logger.info("Raw incoming GET request", {
     method: request.method,
     url: request.url,
     headers: Object.fromEntries(request.headers.entries()),
-    body: rawBody,
   });
 
   try {
-    // Parse request body
-    let requestBody: any = null;
-    let bodyJson = null;
-
-    if (rawBody.trim().length > 0) {
-      try {
-        requestBody = JSON.parse(rawBody);
-        bodyJson = requestBody;
-      } catch (jsonError) {
-        requestBody = rawBody;
-        bodyJson = null;
-      }
-    }
-
-    // Extract from Vapi tool call - simplified to always use toolCallList[0]
-    let toolCallId: string | undefined;
-    let vapiArgs: any = {};
-    let isVapiRequest = false;
-
-    if (bodyJson?.message?.toolCallList?.[0]) {
-      isVapiRequest = true;
-      const toolCall = bodyJson.message.toolCallList[0];
-      toolCallId = toolCall.id;
-      vapiArgs = toolCall.arguments || toolCall.function?.parameters || {};
-    }
-
-    // Fallback: Extract from query parameters if no valid body
-    if (!toolCallId) {
-      const url = new URL(request.url);
-      const query =
-        url.searchParams.get("q") || url.searchParams.get("query") || "";
-      const limit = url.searchParams.get("limit");
-      const cursor = url.searchParams.get("cursor");
-
-      // Check if there's a message parameter with JSON
-      const messageParam = url.searchParams.get("message");
-      if (messageParam) {
-        try {
-          const decodedMessage = JSON.parse(decodeURIComponent(messageParam));
-          if (decodedMessage.toolCallList && decodedMessage.toolCallList[0]) {
-            const toolCall = decodedMessage.toolCallList[0];
-            toolCallId = toolCall.id;
-            vapiArgs =
-              toolCall.arguments || toolCall.function?.parameters || {};
-          }
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-
-      // If still no toolCallId, use simple query params
-      if (!toolCallId && (query || limit || cursor)) {
-        toolCallId = "query-params-fallback";
-        vapiArgs = {
-          q: query,
-          limit: limit ? parseInt(limit) : undefined,
-          cursor: cursor || undefined,
-        };
-      }
-    }
+    // Extract parameters from URL query string
+    const url = new URL(request.url);
+    const query =
+      url.searchParams.get("q") || url.searchParams.get("query") || "";
+    const limit = url.searchParams.get("limit");
+    const cursor = url.searchParams.get("cursor");
 
     // Final parameter resolution
-    const finalQuery = vapiArgs.q || "";
-    const finalLimit = Math.min(parseInt(String(vapiArgs.limit ?? 5)), 50);
-    const finalCursor = vapiArgs.cursor || null;
+    const finalQuery = query;
+    const finalLimit = Math.min(parseInt(String(limit ?? 5)), 50);
+    const finalCursor = cursor || null;
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
       query: finalQuery,
       first: finalLimit,
@@ -86,13 +30,8 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response?.data?.products) {
-      const errorResult = JSON.stringify({ error: "Failed to fetch products" });
       return NextResponse.json(
-        {
-          results: [
-            { toolCallId: toolCallId || "unknown", result: errorResult },
-          ],
-        },
+        { error: "Failed to fetch products" },
         {
           status: 500,
           headers: corsHeaders(request.headers.get("origin") || undefined),
@@ -143,7 +82,7 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    // Always return Vapi response format
+    // Return standard JSON response
     const resultData = {
       query: finalQuery,
       totalFound: transformedProducts.length,
@@ -170,12 +109,7 @@ export async function GET(request: NextRequest) {
       })),
     };
 
-    const serialized = JSON.stringify(resultData);
-    const responseData = {
-      results: [{ toolCallId: toolCallId || "unknown", result: serialized }],
-    };
-
-    return NextResponse.json(responseData, {
+    return NextResponse.json(resultData, {
       headers: corsHeaders(request.headers.get("origin") || undefined),
     });
   } catch (error) {
@@ -183,15 +117,13 @@ export async function GET(request: NextRequest) {
       error: error instanceof Error ? error.message : String(error),
     });
 
-    const errorResult = JSON.stringify({ error: "Internal server error" });
-    const errorResponseData = {
-      results: [{ toolCallId: "unknown", result: errorResult }],
-    };
-
-    return NextResponse.json(errorResponseData, {
-      status: 500,
-      headers: corsHeaders(request.headers.get("origin") || undefined),
-    });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      {
+        status: 500,
+        headers: corsHeaders(request.headers.get("origin") || undefined),
+      }
+    );
   }
 }
 
@@ -208,33 +140,21 @@ export async function POST(request: NextRequest) {
 
   try {
     // Parse request body
-    let requestBody: any = null;
-    let bodyJson = null;
+    let requestBody: any = {};
 
     if (rawBody.trim().length > 0) {
       try {
         requestBody = JSON.parse(rawBody);
-        bodyJson = requestBody;
       } catch (jsonError) {
-        requestBody = rawBody;
-        bodyJson = null;
+        // If JSON parsing fails, treat as empty object
+        requestBody = {};
       }
     }
 
-    // Detect Vapi tool-call wrapper
-    const vapiMessage = requestBody?.message;
-    const vapiToolCall = Array.isArray(vapiMessage?.toolCallList)
-      ? vapiMessage.toolCallList[0]
-      : undefined;
-    const isVapi = Boolean(vapiToolCall);
-    const vapiArgs =
-      vapiToolCall?.arguments || vapiToolCall?.function?.parameters || {};
-
-    // Single, simplified shape: only { q, limit? } — limit defaults to 5
-    const body = (isVapi ? vapiArgs : requestBody) || {};
-    const q = (body.q ?? "").toString();
-    const limit = Math.min(Number(body.limit ?? 5), 50);
-    const cursor = body.cursor ?? null;
+    // Extract parameters from request body
+    const q = (requestBody.q ?? "").toString();
+    const limit = Math.min(Number(requestBody.limit ?? 5), 50);
+    const cursor = requestBody.cursor ?? null;
 
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
       query: q,
@@ -284,23 +204,35 @@ export async function POST(request: NextRequest) {
     );
 
     const payload = {
-      products: transformedProducts,
+      query: q,
+      totalFound: transformedProducts.length,
+      products: transformedProducts.map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        description: p.description || "No description available",
+        handle: p.handle,
+        productType: p.productType,
+        vendor: p.vendor,
+        price: p.priceRange.min,
+        currency: p.priceRange.currency,
+        inStock: p.inStock,
+        imageUrl: p.images[0]?.url || null,
+        variants: p.variants.map((v: any) => ({
+          id: v.id,
+          title: v.title,
+          sku: v.sku,
+          price: v.price,
+          compareAtPrice: v.compareAtPrice,
+          inventoryQuantity: v.inventoryQuantity,
+          availableForSale: v.availableForSale,
+        })),
+      })),
       pagination: {
         hasNextPage: products.pageInfo.hasNextPage,
         endCursor: products.pageInfo.endCursor,
         totalCount: transformedProducts.length,
       },
     };
-
-    // If this is a Vapi tool-call, wrap in { results: [{ toolCallId, result }] }
-    if (isVapi) {
-      const toolCallId = vapiToolCall.id;
-      const responseData = { results: [{ toolCallId, result: payload }] };
-
-      return NextResponse.json(responseData, {
-        headers: corsHeaders(request.headers.get("origin") || undefined),
-      });
-    }
 
     return NextResponse.json(payload, {
       headers: corsHeaders(request.headers.get("origin") || undefined),
