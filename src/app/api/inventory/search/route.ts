@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getShopifyClient, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
+import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
     if (tag) filters.push(`tag:${tag}`);
     if (minPrice) filters.push(`price:>=${minPrice}`);
     if (maxPrice) filters.push(`price:<=${maxPrice}`);
-    if (inStock) filters.push("inventory_quantity:>0");
+    // inventory_quantity filter isn't supported in Storefront tokenless; use available_for_sale only
+    // If needed, we can filter client-side based on variant availability
     if (availableForSale !== undefined) {
       filters.push(`available_for_sale:${availableForSale}`);
     }
@@ -36,14 +37,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Execute GraphQL query
-    const response = await (getShopifyClient() as any).request(
-      PRODUCT_SEARCH_QUERY,
-      {
-        query: searchQuery,
-        first: limit,
-        after: cursor || null,
-      }
-    );
+    const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
+      query: searchQuery,
+      first: limit,
+      after: cursor || null,
+    });
 
     if (!response?.data?.products) {
       return NextResponse.json(
@@ -75,7 +73,7 @@ export async function GET(request: NextRequest) {
             sku: variant.sku,
             price: variant.price.amount,
             compareAtPrice: variant.compareAtPrice?.amount || null,
-            inventoryQuantity: variant.inventoryQuantity,
+            inventoryQuantity: variant.quantityAvailable,
             availableForSale: variant.availableForSale,
             options: variant.selectedOptions,
           })
@@ -128,7 +126,7 @@ export async function POST(request: NextRequest) {
     if (filters.tag) filterParts.push(`tag:${filters.tag}`);
     if (filters.minPrice) filterParts.push(`price:>=${filters.minPrice}`);
     if (filters.maxPrice) filterParts.push(`price:<=${filters.maxPrice}`);
-    if (filters.inStock) filterParts.push("inventory_quantity:>0");
+    // inventory_quantity filter isn't supported in Storefront tokenless; omit it
     if (filters.availableForSale !== undefined) {
       filterParts.push(`available_for_sale:${filters.availableForSale}`);
     }
@@ -137,14 +135,11 @@ export async function POST(request: NextRequest) {
       searchQuery = `${query} ${filterParts.join(" ")}`.trim();
     }
 
-    const response = await (getShopifyClient() as any).request(
-      PRODUCT_SEARCH_QUERY,
-      {
-        query: searchQuery,
-        first: limit,
-        after: cursor || null,
-      }
-    );
+    const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
+      query: searchQuery,
+      first: limit,
+      after: cursor || null,
+    });
 
     if (!response?.data?.products) {
       return NextResponse.json(
@@ -175,7 +170,7 @@ export async function POST(request: NextRequest) {
             sku: variant.sku,
             price: variant.price.amount,
             compareAtPrice: variant.compareAtPrice?.amount || null,
-            inventoryQuantity: variant.inventoryQuantity,
+            inventoryQuantity: variant.quantityAvailable,
             availableForSale: variant.availableForSale,
             options: variant.selectedOptions,
           })

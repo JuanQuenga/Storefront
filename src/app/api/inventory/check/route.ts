@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { shopifyClient, INVENTORY_QUERY } from "@/lib/shopify";
+import { storefrontRequest, INVENTORY_QUERY } from "@/lib/shopify";
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id}`
     );
 
-    const response = await (shopifyClient as any).request(INVENTORY_QUERY, {
+    const response = await storefrontRequest(INVENTORY_QUERY, {
       ids: formattedIds,
     });
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         id: string;
         sku: string;
         title: string;
-        inventoryQuantity: number;
+        quantityAvailable: number;
         availableForSale: boolean;
         price: { amount: string; currencyCode: string };
         product: { title: string; handle: string };
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         id: node.id,
         sku: node.sku,
         title: node.title,
-        inventoryQuantity: node.inventoryQuantity,
+        inventoryQuantity: node.quantityAvailable,
         availableForSale: node.availableForSale,
         price: node.price.amount,
         currency: node.price.currencyCode,
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id}`
     );
 
-    const response = await (shopifyClient as any).request(INVENTORY_QUERY, {
+    const response = await storefrontRequest(INVENTORY_QUERY, {
       ids: formattedIds,
     });
 

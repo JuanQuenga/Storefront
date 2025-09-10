@@ -1,17 +1,31 @@
-import { createStorefrontApiClient } from "@shopify/storefront-api-client";
 import { env } from "./env";
 
-// Initialize the Storefront API client with tokenless access
-// Using a dummy token to satisfy the client library - actual requests will be tokenless
-export const shopifyClient = createStorefrontApiClient({
-  storeDomain: env.SHOPIFY_STORE_DOMAIN,
-  apiVersion: env.SHOPIFY_API_VERSION,
-  publicAccessToken: "dummy-token-for-tokenless-access", // Dummy token for client compatibility
-} as any);
+// Tokenless fetch helper for Storefront API per docs:
+// https://shopify.dev/docs/api/storefront#authentication
+export async function storefrontRequest<TData = any>(
+  query: string,
+  variables?: Record<string, any>
+): Promise<{ data?: TData; errors?: any }> {
+  const url = `https://${env.SHOPIFY_STORE_DOMAIN}/api/${env.SHOPIFY_API_VERSION}/graphql.json`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query, variables }),
+    // Ensure server-side runtime fetch
+    cache: "no-store",
+  });
 
-// Function to get the client (always available since validation happens at startup)
-export function getShopifyClient() {
-  return shopifyClient;
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      `Storefront request failed: ${res.status} ${
+        res.statusText
+      } - ${JSON.stringify(json)}`
+    );
+  }
+  return json;
 }
 
 // GraphQL queries for tokenless access (keeping as strings for Shopify client compatibility)
@@ -51,7 +65,7 @@ export const PRODUCT_SEARCH_QUERY = `
                   amount
                   currencyCode
                 }
-                inventoryQuantity
+                quantityAvailable
                 availableForSale
                 selectedOptions {
                   name
@@ -150,7 +164,7 @@ export const INVENTORY_QUERY = `
     nodes(ids: $ids) {
       ... on ProductVariant {
         id
-        inventoryQuantity
+        quantityAvailable
         availableForSale
         sku
         title
@@ -191,7 +205,7 @@ export const COLLECTIONS_QUERY = `
                 variants(first: 1) {
                   edges {
                     node {
-                      inventoryQuantity
+                      quantityAvailable
                       availableForSale
                     }
                   }

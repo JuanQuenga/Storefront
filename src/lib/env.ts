@@ -6,22 +6,13 @@ import { z } from "zod";
  */
 const envSchema = z.object({
   // Required environment variables
-  SHOPIFY_STORE_DOMAIN: z
-    .string()
-    .min(1, "SHOPIFY_STORE_DOMAIN is required")
-    .regex(
-      /^[a-zA-Z0-9-]+\.myshopify\.com$/,
-      "SHOPIFY_STORE_DOMAIN must be a valid Shopify store domain (e.g., mystore.myshopify.com)"
-    ),
+  SHOPIFY_STORE_DOMAIN: z.string().min(1, "SHOPIFY_STORE_DOMAIN is required"),
 
   // Optional environment variables with defaults
-  SHOPIFY_API_VERSION: z
-    .string()
-    .default("2024-04")
-    .refine(
-      (version) => /^20\d{2}-\d{2}$/.test(version),
-      "SHOPIFY_API_VERSION must be in format YYYY-MM"
-    ),
+  SHOPIFY_API_VERSION: z.string().default("2025-07"),
+
+  // Optional: public storefront token (needed if store disallows tokenless)
+  SHOPIFY_STOREFRONT_PUBLIC_TOKEN: z.string().optional(),
 
   // Node environment
   NODE_ENV: z

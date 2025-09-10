@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { shopifyClient, PRODUCT_BY_ID_QUERY } from "@/lib/shopify";
+import { storefrontRequest, PRODUCT_BY_ID_QUERY } from "@/lib/shopify";
 
 export async function GET(
   request: NextRequest,
@@ -22,7 +22,7 @@ export async function GET(
       formattedId = `gid://shopify/Product/${productId}`;
     }
 
-    const response = await (shopifyClient as any).request(PRODUCT_BY_ID_QUERY, {
+    const response = await storefrontRequest(PRODUCT_BY_ID_QUERY, {
       id: formattedId,
     });
 

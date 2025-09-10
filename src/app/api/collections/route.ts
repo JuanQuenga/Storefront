@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { shopifyClient, COLLECTIONS_QUERY } from "@/lib/shopify";
+import { storefrontRequest, COLLECTIONS_QUERY } from "@/lib/shopify";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const cursor = searchParams.get("cursor");
     const includeProducts = searchParams.get("include_products") === "true";
 
-    const response = await (shopifyClient as any).request(COLLECTIONS_QUERY, {
+    const response = await storefrontRequest(COLLECTIONS_QUERY, {
       first: limit,
       after: cursor || null,
     });
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
               },
               inventory: product.variants.edges[0]?.node
                 ? {
-                    quantity: product.variants.edges[0].node.inventoryQuantity,
+                    quantity: product.variants.edges[0].node.quantityAvailable,
                     availableForSale:
                       product.variants.edges[0].node.availableForSale,
                   }
