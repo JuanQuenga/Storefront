@@ -4,70 +4,68 @@ import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-
     // Vapi: ALWAYS read JSON body per docs
-    let isVapi = false;
-    let vapiArgs: any = {};
+    const bodyText = await request.text();
+    const bodyJson = JSON.parse(bodyText);
+
+    // Extract from Vapi tool call (always present)
     let toolCallId: string | undefined;
-    try {
-      const bodyText = await request.text();
-      if (bodyText) {
-        const bodyJson = JSON.parse(bodyText);
-        const callFromMessage = bodyJson.message.toolCallList[0];
-        toolCallId = callFromMessage.id;
-        isVapi = true;
-        toolCallId = bodyJson.id || "vapi-simple-body";
-        vapiArgs = {
-          q: bodyJson.q,
-          limit: bodyJson.limit,
-          cursor: bodyJson.cursor,
-        };
-      }
-    } catch (_) {}
+    let vapiArgs: any = {};
 
-    // Inputs
-    const query = (isVapi ? vapiArgs.q : searchParams.get("q")) || "";
-    const limit = Math.min(
-      parseInt(
-        String(isVapi ? vapiArgs.limit ?? 5 : searchParams.get("limit") || "20")
-      ),
-      50
-    );
-    const cursor =
-      (isVapi ? vapiArgs.cursor : searchParams.get("cursor")) || null;
+    const callFromMessage = Array.isArray(bodyJson?.message?.toolCallList)
+      ? bodyJson.message.toolCallList[0]
+      : undefined;
+    const callFromToolCall = bodyJson?.toolCall;
+    const directArgs = bodyJson?.arguments;
 
-    // Build search query (filters only for non-Vapi GETs)
-    let searchQuery = query;
-    if (!isVapi) {
-      const productType = searchParams.get("product_type");
-      const vendor = searchParams.get("vendor");
-      const tag = searchParams.get("tag");
-      const minPrice = searchParams.get("min_price");
-      const maxPrice = searchParams.get("max_price");
-      const availableForSale = searchParams.get("available");
-      const filters: string[] = [];
-      if (productType) filters.push(`product_type:${productType}`);
-      if (vendor) filters.push(`vendor:${vendor}`);
-      if (tag) filters.push(`tag:${tag}`);
-      if (minPrice) filters.push(`price:>=${minPrice}`);
-      if (maxPrice) filters.push(`price:<=${maxPrice}`);
-      if (availableForSale !== null)
-        filters.push(`available_for_sale:${availableForSale}`);
-      if (filters.length > 0)
-        searchQuery = `${query} ${filters.join(" ")}`.trim();
+    if (callFromMessage) {
+      toolCallId = callFromMessage.id;
+      vapiArgs =
+        callFromMessage.arguments || callFromMessage.function?.parameters || {};
+    } else if (
+      callFromToolCall &&
+      (callFromToolCall.arguments || callFromToolCall.function?.parameters)
+    ) {
+      toolCallId = callFromToolCall.id;
+      vapiArgs =
+        callFromToolCall.arguments ||
+        callFromToolCall.function?.parameters ||
+        {};
+    } else if (directArgs) {
+      toolCallId = bodyJson.id || "vapi-direct-args";
+      vapiArgs = directArgs;
+    } else if (bodyJson && (bodyJson.q || bodyJson.limit || bodyJson.cursor)) {
+      toolCallId = bodyJson.id || "vapi-simple-body";
+      vapiArgs = {
+        q: bodyJson.q,
+        limit: bodyJson.limit,
+        cursor: bodyJson.cursor,
+      };
     }
 
+    // Inputs (Vapi format)
+    const query = vapiArgs.q || "";
+    const limit = Math.min(parseInt(String(vapiArgs.limit ?? 5)), 50);
+    const cursor = vapiArgs.cursor || null;
+
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
-      query: searchQuery,
+      query: query,
       first: limit,
       after: cursor,
     });
 
     if (!response?.data?.products) {
+      const errorResult = JSON.stringify({ error: "Failed to fetch products" });
       return NextResponse.json(
-        { error: "Failed to fetch products" },
-        { status: 500 }
+        {
+          results: [
+            { toolCallId: toolCallId || "unknown", result: errorResult },
+          ],
+        },
+        {
+          status: 500,
+          headers: corsHeaders(request.headers.get("origin") || undefined),
+        }
       );
     }
 
@@ -114,58 +112,55 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    if (isVapi) {
-      const resultData = {
-        query,
-        totalFound: transformedProducts.length,
-        products: transformedProducts.slice(0, limit).map((p: any) => ({
-          id: p.id,
-          title: p.title,
-          description: p.description || "No description available",
-          handle: p.handle,
-          productType: p.productType,
-          vendor: p.vendor,
-          price: p.priceRange.min,
-          currency: p.priceRange.currency,
-          inStock: p.inStock,
-          imageUrl: p.images[0]?.url || null,
-          variants: p.variants.map((v: any) => ({
-            id: v.id,
-            title: v.title,
-            sku: v.sku,
-            price: v.price,
-            compareAtPrice: v.compareAtPrice,
-            inventoryQuantity: v.inventoryQuantity,
-            availableForSale: v.availableForSale,
-          })),
+    // Always return Vapi response format
+    const resultData = {
+      query,
+      totalFound: transformedProducts.length,
+      products: transformedProducts.slice(0, limit).map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        description: p.description || "No description available",
+        handle: p.handle,
+        productType: p.productType,
+        vendor: p.vendor,
+        price: p.priceRange.min,
+        currency: p.priceRange.currency,
+        inStock: p.inStock,
+        imageUrl: p.images[0]?.url || null,
+        variants: p.variants.map((v: any) => ({
+          id: v.id,
+          title: v.title,
+          sku: v.sku,
+          price: v.price,
+          compareAtPrice: v.compareAtPrice,
+          inventoryQuantity: v.inventoryQuantity,
+          availableForSale: v.availableForSale,
         })),
-      };
-      const serialized = JSON.stringify(resultData);
-      return NextResponse.json(
-        {
-          results: [
-            { toolCallId: toolCallId || "unknown", result: serialized },
-          ],
-        },
-        { headers: corsHeaders(request.headers.get("origin") || undefined) }
-      );
-    }
-
+      })),
+    };
+    const serialized = JSON.stringify(resultData);
     return NextResponse.json(
       {
-        products: transformedProducts,
-        pagination: {
-          hasNextPage: products.pageInfo.hasNextPage,
-          endCursor: products.pageInfo.endCursor,
-          totalCount: transformedProducts.length,
-        },
+        results: [{ toolCallId: toolCallId || "unknown", result: serialized }],
       },
       { headers: corsHeaders(request.headers.get("origin") || undefined) }
     );
   } catch (error) {
     console.error("Error searching products:", error);
+    // Try to extract toolCallId from the request body for error response
+    let errorToolCallId = "unknown";
+    try {
+      const bodyText = await request.text();
+      const bodyJson = JSON.parse(bodyText);
+      const call = Array.isArray(bodyJson?.message?.toolCallList)
+        ? bodyJson.message.toolCallList[0]
+        : bodyJson?.toolCall || bodyJson;
+      errorToolCallId = call?.id || "unknown";
+    } catch (_) {}
+
+    const errorResult = JSON.stringify({ error: "Internal server error" });
     return NextResponse.json(
-      { error: "Internal server error" },
+      { results: [{ toolCallId: errorToolCallId, result: errorResult }] },
       {
         status: 500,
         headers: corsHeaders(request.headers.get("origin") || undefined),
