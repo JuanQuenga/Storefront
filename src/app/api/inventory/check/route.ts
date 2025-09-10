@@ -11,25 +11,47 @@ export async function GET(request: NextRequest) {
   let isVapiRequest = false;
 
   try {
-    // Check for VAPI request format in body
-    const bodyText = await request.text();
+    // Check for VAPI request format in body - try JSON first
+    let requestBody: any = null;
 
-    if (bodyText.trim()) {
+    try {
+      // Try to read as JSON first (most common case for VAPI)
+      requestBody = await request.json();
+      logger.debug("📄 JSON body received", { bodyKeys: Object.keys(requestBody) });
+
+      if (requestBody?.message?.toolCallList?.[0]) {
+        isVapiRequest = true;
+        const toolCall = requestBody.message.toolCallList[0];
+        toolCallId = toolCall.id;
+
+        logger.info("🤖 VAPI Inventory Check Request Detected", {
+          toolCallId: toolCallId,
+          functionName: toolCall.function?.name,
+          vapiMessageId: requestBody.message?.id,
+        });
+      }
+    } catch (e) {
+      // If JSON parsing fails, fall back to text
+      logger.debug("📝 JSON parsing failed, trying text fallback");
+      const bodyText = await request.text();
+      logger.debug("📄 Text body received", { bodyLength: bodyText.length });
+
       try {
-        const bodyJson = JSON.parse(bodyText);
-        if (bodyJson?.message?.toolCallList?.[0]) {
+        requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
+        if (requestBody?.message?.toolCallList?.[0]) {
           isVapiRequest = true;
-          const toolCall = bodyJson.message.toolCallList[0];
+          const toolCall = requestBody.message.toolCallList[0];
           toolCallId = toolCall.id;
 
           logger.info("🤖 VAPI Inventory Check Request Detected", {
             toolCallId: toolCallId,
             functionName: toolCall.function?.name,
-            vapiMessageId: bodyJson.message?.id,
+            vapiMessageId: requestBody.message?.id,
           });
         }
-      } catch (e) {
+      } catch (parseError) {
         // Not a JSON body, continue with query params
+        requestBody = bodyText;
       }
     }
 
@@ -266,11 +288,35 @@ export async function POST(request: NextRequest) {
   let isVapiRequest = false;
 
   try {
-    const rawBody = await request.json();
-    logger.debug("📄 Raw POST request body received", { body: rawBody });
+    // Try to read as JSON first (most common case for VAPI)
+    let requestBody: any = null;
+    let bodyJson = null;
+
+    try {
+      requestBody = await request.json();
+      bodyJson = requestBody;
+      logger.debug("📄 JSON body received", { bodyKeys: Object.keys(requestBody) });
+    } catch (e) {
+      // If JSON parsing fails, fall back to text
+      logger.debug("📝 JSON parsing failed, trying text fallback");
+      const bodyText = await request.text();
+      logger.debug("📄 Text body received", { bodyLength: bodyText.length });
+
+      try {
+        requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
+        bodyJson = requestBody;
+        logger.debug("🔧 Parsed JSON from text", { bodyKeys: requestBody ? Object.keys(requestBody) : [] });
+      } catch (parseError) {
+        requestBody = bodyText; // Keep as string if JSON parsing fails
+        bodyJson = null;
+        logger.debug("📝 Using raw body text", { bodyLength: bodyText.length });
+      }
+    }
+
+    logger.debug("📄 Raw POST request body received", { body: requestBody });
 
     // Detect Vapi tool-call wrapper
-    const vapiMessage = rawBody?.message;
+    const vapiMessage = requestBody?.message;
     const vapiToolCall = Array.isArray(vapiMessage?.toolCallList)
       ? vapiMessage.toolCallList[0]
       : undefined;

@@ -8,18 +8,30 @@ export async function GET(request: NextRequest) {
   logger.info("🔍 Inventory search API called", { method: "GET" });
 
   try {
-    // Vapi: ALWAYS read JSON body per docs, but handle empty body gracefully
-    const bodyText = await request.text();
-    logger.debug("📄 Body text received", { bodyLength: bodyText.length });
-
-    // Log the HTTP request with body content
+    // Vapi: Read JSON body directly for better performance and proper handling
     let requestBody: any = null;
+    let bodyJson = null;
+
     try {
-      requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
-      logger.debug("🔧 Parsed request body", { body: requestBody });
+      // Try to read as JSON first (most common case for VAPI)
+      requestBody = await request.json();
+      bodyJson = requestBody;
+      logger.debug("📄 JSON body received", { bodyKeys: Object.keys(requestBody) });
     } catch (e) {
-      requestBody = bodyText; // Keep as string if JSON parsing fails
-      logger.debug("📝 Using raw body text", { body: requestBody });
+      // If JSON parsing fails, fall back to text
+      logger.debug("📝 JSON parsing failed, trying text fallback");
+      const bodyText = await request.text();
+      logger.debug("📄 Text body received", { bodyLength: bodyText.length });
+
+      try {
+        requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
+        bodyJson = requestBody;
+        logger.debug("🔧 Parsed JSON from text", { bodyKeys: requestBody ? Object.keys(requestBody) : [] });
+      } catch (parseError) {
+        requestBody = bodyText; // Keep as string if JSON parsing fails
+        bodyJson = null;
+        logger.debug("📝 Using raw body text", { bodyLength: bodyText.length });
+      }
     }
 
     logger.info("🌐 HTTP Request", {
@@ -27,19 +39,8 @@ export async function GET(request: NextRequest) {
       url: request.url,
       headers: Object.fromEntries(request.headers.entries()),
       body: requestBody,
+      hasJsonBody: !!bodyJson,
     });
-    let bodyJson = null;
-
-    if (bodyText.trim()) {
-      try {
-        bodyJson = JSON.parse(bodyText);
-      } catch (parseError) {
-        logger.warn("Failed to parse request body as JSON", {
-          error: parseError,
-        });
-        // Continue with null bodyJson - will use query params as fallback
-      }
-    }
 
     // Extract from Vapi tool call - simplified to always use toolCallList[0]
     let toolCallId: string | undefined;
@@ -264,11 +265,35 @@ export async function POST(request: NextRequest) {
   logger.info("🔍 Inventory search API called", { method: "POST" });
 
   try {
-    const rawBody = await request.json();
-    logger.debug("📄 Raw request body received", { body: rawBody });
+    // Try to read as JSON first (most common case for VAPI)
+    let requestBody: any = null;
+    let bodyJson = null;
+
+    try {
+      requestBody = await request.json();
+      bodyJson = requestBody;
+      logger.debug("📄 JSON body received", { bodyKeys: Object.keys(requestBody) });
+    } catch (e) {
+      // If JSON parsing fails, fall back to text
+      logger.debug("📝 JSON parsing failed, trying text fallback");
+      const bodyText = await request.text();
+      logger.debug("📄 Text body received", { bodyLength: bodyText.length });
+
+      try {
+        requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
+        bodyJson = requestBody;
+        logger.debug("🔧 Parsed JSON from text", { bodyKeys: requestBody ? Object.keys(requestBody) : [] });
+      } catch (parseError) {
+        requestBody = bodyText; // Keep as string if JSON parsing fails
+        bodyJson = null;
+        logger.debug("📝 Using raw body text", { bodyLength: bodyText.length });
+      }
+    }
+
+    logger.debug("📄 Raw request body received", { body: requestBody });
 
     // Detect Vapi tool-call wrapper per docs: https://docs.vapi.ai/tools/custom-tools#request-format-understanding-the-tool-call-request
-    const vapiMessage = rawBody?.message;
+    const vapiMessage = requestBody?.message;
     const vapiToolCall = Array.isArray(vapiMessage?.toolCallList)
       ? vapiMessage.toolCallList[0]
       : undefined;
