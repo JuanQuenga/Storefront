@@ -2,10 +2,58 @@ import { NextRequest, NextResponse } from "next/server";
 import { corsHeaders } from "@/lib/cors";
 import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 
+// Debug logging variables (only used in development)
+
 export async function GET(request: NextRequest) {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Log incoming request (development only)
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      const debugModule = await import("@/app/debug-logs/page");
+      const headers: Record<string, string> = {};
+      request.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+
+      const logEntry = {
+        id: requestId,
+        timestamp: new Date().toISOString(),
+        method: request.method,
+        url: request.url,
+        headers,
+        body: null as any,
+      };
+
+      debugModule.requestLogs.unshift(logEntry);
+      if (debugModule.requestLogs.length > debugModule.MAX_LOGS) {
+        debugModule.requestLogs.splice(debugModule.MAX_LOGS);
+      }
+    } catch (e) {
+      // Debug page doesn't exist, skip logging
+    }
+  }
+
   try {
     // Vapi: ALWAYS read JSON body per docs, but handle empty body gracefully
     const bodyText = await request.text();
+
+    // Update log with body content
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const debugModule = await import("@/app/debug-logs/page");
+        const logEntry = debugModule.requestLogs.find((log: any) => log.id === requestId);
+        if (logEntry) {
+          try {
+            logEntry.body = bodyText.trim() ? JSON.parse(bodyText) : null;
+          } catch (e) {
+            logEntry.body = bodyText; // Keep as string if JSON parsing fails
+          }
+        }
+      } catch (e) {
+        // Debug page doesn't exist, skip logging
+      }
+    }
     let bodyJson = null;
 
     if (bodyText.trim()) {
@@ -22,9 +70,10 @@ export async function GET(request: NextRequest) {
     let vapiArgs: any = {};
 
     // Try to extract from JSON body first
-    const callFromMessage = bodyJson && Array.isArray(bodyJson?.message?.toolCallList)
-      ? bodyJson.message.toolCallList[0]
-      : undefined;
+    const callFromMessage =
+      bodyJson && Array.isArray(bodyJson?.message?.toolCallList)
+        ? bodyJson.message.toolCallList[0]
+        : undefined;
     const callFromToolCall = bodyJson?.toolCall;
     const directArgs = bodyJson?.arguments;
 
@@ -56,7 +105,8 @@ export async function GET(request: NextRequest) {
     // Fallback: Extract from query parameters if no valid body
     if (!toolCallId) {
       const url = new URL(request.url);
-      const query = url.searchParams.get("q") || url.searchParams.get("query") || "";
+      const query =
+        url.searchParams.get("q") || url.searchParams.get("query") || "";
       const limit = url.searchParams.get("limit");
       const cursor = url.searchParams.get("cursor");
 
@@ -68,7 +118,8 @@ export async function GET(request: NextRequest) {
           if (decodedMessage.toolCallList && decodedMessage.toolCallList[0]) {
             const toolCall = decodedMessage.toolCallList[0];
             toolCallId = toolCall.id;
-            vapiArgs = toolCall.arguments || toolCall.function?.parameters || {};
+            vapiArgs =
+              toolCall.arguments || toolCall.function?.parameters || {};
           }
         } catch (e) {
           console.warn("Failed to parse message query param:", e);
@@ -182,10 +233,26 @@ export async function GET(request: NextRequest) {
       })),
     };
     const serialized = JSON.stringify(resultData);
+    const responseData = {
+      results: [{ toolCallId: toolCallId || "unknown", result: serialized }],
+    };
+
+    // Log successful response
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const debugModule = await import("@/app/debug-logs/page");
+        const logEntry = debugModule.requestLogs.find((log: any) => log.id === requestId);
+        if (logEntry) {
+          logEntry.response = responseData;
+          logEntry.status = 200;
+        }
+      } catch (e) {
+        // Debug page doesn't exist, skip logging
+      }
+    }
+
     return NextResponse.json(
-      {
-        results: [{ toolCallId: toolCallId || "unknown", result: serialized }],
-      },
+      responseData,
       { headers: corsHeaders(request.headers.get("origin") || undefined) }
     );
   } catch (error) {
@@ -204,8 +271,25 @@ export async function GET(request: NextRequest) {
     } catch (_) {}
 
     const errorResult = JSON.stringify({ error: "Internal server error" });
+    const errorResponseData = { results: [{ toolCallId: errorToolCallId, result: errorResult }] };
+
+    // Log error response
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const debugModule = await import("@/app/debug-logs/page");
+        const logEntry = debugModule.requestLogs.find((log: any) => log.id === requestId);
+        if (logEntry) {
+          logEntry.response = errorResponseData;
+          logEntry.status = 500;
+          logEntry.error = error instanceof Error ? error.message : String(error);
+        }
+      } catch (e) {
+        // Debug page doesn't exist, skip logging
+      }
+    }
+
     return NextResponse.json(
-      { results: [{ toolCallId: errorToolCallId, result: errorResult }] },
+      errorResponseData,
       {
         status: 500,
         headers: corsHeaders(request.headers.get("origin") || undefined),
