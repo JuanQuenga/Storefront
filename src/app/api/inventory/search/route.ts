@@ -16,7 +16,9 @@ export async function GET(request: NextRequest) {
       // Try to read as JSON first (most common case for VAPI)
       requestBody = await request.json();
       bodyJson = requestBody;
-      logger.debug("📄 JSON body received", { bodyKeys: Object.keys(requestBody) });
+      logger.debug("📄 JSON body received", {
+        bodyKeys: Object.keys(requestBody),
+      });
     } catch (e) {
       // If JSON parsing fails, fall back to text
       logger.debug("📝 JSON parsing failed, trying text fallback");
@@ -26,7 +28,9 @@ export async function GET(request: NextRequest) {
       try {
         requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
         bodyJson = requestBody;
-        logger.debug("🔧 Parsed JSON from text", { bodyKeys: requestBody ? Object.keys(requestBody) : [] });
+        logger.debug("🔧 Parsed JSON from text", {
+          bodyKeys: requestBody ? Object.keys(requestBody) : [],
+        });
       } catch (parseError) {
         requestBody = bodyText; // Keep as string if JSON parsing fails
         bodyJson = null;
@@ -272,7 +276,9 @@ export async function POST(request: NextRequest) {
     try {
       requestBody = await request.json();
       bodyJson = requestBody;
-      logger.debug("📄 JSON body received", { bodyKeys: Object.keys(requestBody) });
+      logger.debug("📄 JSON body received", {
+        bodyKeys: Object.keys(requestBody),
+      });
     } catch (e) {
       // If JSON parsing fails, fall back to text
       logger.debug("📝 JSON parsing failed, trying text fallback");
@@ -282,7 +288,9 @@ export async function POST(request: NextRequest) {
       try {
         requestBody = bodyText.trim() ? JSON.parse(bodyText) : null;
         bodyJson = requestBody;
-        logger.debug("🔧 Parsed JSON from text", { bodyKeys: requestBody ? Object.keys(requestBody) : [] });
+        logger.debug("🔧 Parsed JSON from text", {
+          bodyKeys: requestBody ? Object.keys(requestBody) : [],
+        });
       } catch (parseError) {
         requestBody = bodyText; // Keep as string if JSON parsing fails
         bodyJson = null;
@@ -312,7 +320,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Single, simplified shape: only { q, limit? } — limit defaults to 5
-    const body = (isVapi ? vapiArgs : rawBody) || {};
+    const body = (isVapi ? vapiArgs : requestBody) || {};
     const q = (body.q ?? "").toString();
     const limit = Math.min(Number(body.limit ?? 5), 50);
     const cursor = body.cursor ?? null;

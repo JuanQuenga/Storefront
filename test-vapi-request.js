@@ -39,7 +39,7 @@ const testVapiRequest = async () => {
       body: JSON.stringify(vapiRequestBody),
     });
 
-    ed; // Add a small delay to ensure logs are processed
+    // Add a small delay to ensure logs are processed
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const responseData = await response.json();
