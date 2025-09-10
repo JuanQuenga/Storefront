@@ -106,39 +106,52 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    // Support two shapes:
+    // 1) Advanced: { query, filters, pagination, sort }
+    // 2) Simple: { q, limit, cursor, product_type, vendor, tag, min_price, max_price, in_stock, available }
     const {
-      query = "",
-      filters = {},
-      pagination = {},
+      query: advQuery,
+      filters: advFilters = {},
+      pagination: advPagination = {},
       sort = "RELEVANCE",
-    } = body;
+    } = body || {};
 
-    const limit = Math.min(pagination.limit || 20, 50);
-    const cursor = pagination.cursor;
+    const q = body?.q ?? "";
+    const productType = advFilters.productType ?? body?.product_type;
+    const vendor = advFilters.vendor ?? body?.vendor;
+    const tag = advFilters.tag ?? body?.tag;
+    const minPrice = advFilters.minPrice ?? body?.min_price;
+    const maxPrice = advFilters.maxPrice ?? body?.max_price;
+    const availableForSale = advFilters.availableForSale ?? body?.available;
+    // Note: in_stock cannot be expressed in tokenless search filters; omit server-side
 
-    // Build advanced search query
-    let searchQuery = query;
+    const limit = Math.min(
+      Number(advPagination.limit ?? body?.limit ?? 20),
+      50
+    );
+    const cursor = (advPagination.cursor ?? body?.cursor) || null;
 
-    const filterParts = [];
-    if (filters.productType)
-      filterParts.push(`product_type:${filters.productType}`);
-    if (filters.vendor) filterParts.push(`vendor:${filters.vendor}`);
-    if (filters.tag) filterParts.push(`tag:${filters.tag}`);
-    if (filters.minPrice) filterParts.push(`price:>=${filters.minPrice}`);
-    if (filters.maxPrice) filterParts.push(`price:<=${filters.maxPrice}`);
-    // inventory_quantity filter isn't supported in Storefront tokenless; omit it
-    if (filters.availableForSale !== undefined) {
-      filterParts.push(`available_for_sale:${filters.availableForSale}`);
+    const filterParts: string[] = [];
+    if (productType) filterParts.push(`product_type:${productType}`);
+    if (vendor) filterParts.push(`vendor:${vendor}`);
+    if (tag) filterParts.push(`tag:${tag}`);
+    if (minPrice) filterParts.push(`price:>=${minPrice}`);
+    if (maxPrice) filterParts.push(`price:<=${maxPrice}`);
+    if (availableForSale !== undefined) {
+      filterParts.push(`available_for_sale:${availableForSale}`);
     }
 
+    const baseQuery = (advQuery ?? q ?? "").toString();
+    let searchQuery = baseQuery;
     if (filterParts.length > 0) {
-      searchQuery = `${query} ${filterParts.join(" ")}`.trim();
+      searchQuery = `${baseQuery} ${filterParts.join(" ")}`.trim();
     }
 
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
       query: searchQuery,
       first: limit,
-      after: cursor || null,
+      after: cursor,
     });
 
     if (!response?.data?.products) {
