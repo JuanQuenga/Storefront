@@ -5,9 +5,37 @@ import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get("q") || "";
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50); // Max 50 items
-    const cursor = searchParams.get("cursor");
+    // Detect Vapi GET (URL-encoded JSON in ?message=)
+    const vapiMessageParam = searchParams.get("message");
+    let isVapi = false;
+    let vapiArgs: any = {};
+    let toolCallId: string | undefined;
+    if (vapiMessageParam) {
+      try {
+        const parsed = JSON.parse(vapiMessageParam);
+        const call = Array.isArray(parsed?.toolCallList)
+          ? parsed.toolCallList[0]
+          : undefined;
+        if (call) {
+          isVapi = true;
+          toolCallId = call.id;
+          vapiArgs = call.arguments || call.function?.parameters || {};
+        }
+      } catch (_) {}
+    }
+
+    // Inputs (Vapi: q, limit defaults to 5, optional cursor)
+    const query = (isVapi ? vapiArgs.q : searchParams.get("q")) || "";
+    const limit = Math.min(
+      parseInt(
+        (isVapi
+          ? String(vapiArgs.limit ?? "5")
+          : searchParams.get("limit") || "20") as string
+      ),
+      50
+    );
+    const cursor =
+      (isVapi ? vapiArgs.cursor : searchParams.get("cursor")) || null;
     const sortKey = searchParams.get("sort") || "RELEVANCE";
     const productType = searchParams.get("product_type");
     const vendor = searchParams.get("vendor");
@@ -20,28 +48,28 @@ export async function GET(request: NextRequest) {
     // Build search query
     let searchQuery = query;
 
-    // Add filters
-    const filters = [];
-    if (productType) filters.push(`product_type:${productType}`);
-    if (vendor) filters.push(`vendor:${vendor}`);
-    if (tag) filters.push(`tag:${tag}`);
-    if (minPrice) filters.push(`price:>=${minPrice}`);
-    if (maxPrice) filters.push(`price:<=${maxPrice}`);
-    // inventory_quantity filter isn't supported in Storefront tokenless; use available_for_sale only
-    // If needed, we can filter client-side based on variant availability
-    if (availableForSale !== undefined) {
-      filters.push(`available_for_sale:${availableForSale}`);
-    }
-
-    if (filters.length > 0) {
-      searchQuery = `${query} ${filters.join(" ")}`.trim();
+    // Only add advanced filters for non-Vapi callers
+    if (!isVapi) {
+      const filters: string[] = [];
+      if (productType) filters.push(`product_type:${productType}`);
+      if (vendor) filters.push(`vendor:${vendor}`);
+      if (tag) filters.push(`tag:${tag}`);
+      if (minPrice) filters.push(`price:>=${minPrice}`);
+      if (maxPrice) filters.push(`price:<=${maxPrice}`);
+      // inventory_quantity filter isn't supported in Storefront tokenless; use available_for_sale only
+      if (availableForSale !== undefined) {
+        filters.push(`available_for_sale:${availableForSale}`);
+      }
+      if (filters.length > 0) {
+        searchQuery = `${query} ${filters.join(" ")}`.trim();
+      }
     }
 
     // Execute GraphQL query
     const response = await storefrontRequest(PRODUCT_SEARCH_QUERY, {
       query: searchQuery,
       first: limit,
-      after: cursor || null,
+      after: cursor,
     });
 
     if (!response?.data?.products) {
@@ -53,38 +81,75 @@ export async function GET(request: NextRequest) {
 
     const { products } = response.data;
 
-    // Transform the response to a more user-friendly format
+    // Transform products
     const transformedProducts = products.edges.map(
-      ({ node }: { node: any }) => ({
-        id: node.id,
-        title: node.title,
-        handle: node.handle,
-        description: node.description,
-        productType: node.productType,
-        vendor: node.vendor,
-        priceRange: {
-          min: node.priceRange.minVariantPrice.amount,
-          max: node.priceRange.maxVariantPrice.amount,
-          currency: node.priceRange.minVariantPrice.currencyCode,
-        },
-        variants: node.variants.edges.map(
-          ({ node: variant }: { node: any }) => ({
-            id: variant.id,
-            title: variant.title,
-            sku: variant.sku,
-            price: variant.price.amount,
-            compareAtPrice: variant.compareAtPrice?.amount || null,
-            inventoryQuantity: variant.quantityAvailable,
-            availableForSale: variant.availableForSale,
-            options: variant.selectedOptions,
-          })
-        ),
-        images: node.images.edges.map(({ node: image }: { node: any }) => ({
-          url: image.url,
-          altText: image.altText,
-        })),
-      })
+      ({ node }: { node: any }) => {
+        const currency = node.priceRange.minVariantPrice.currencyCode;
+        const minPrice = node.priceRange.minVariantPrice.amount;
+        const hasAvailableVariant = node.variants.edges.some(
+          ({ node: v }: { node: any }) =>
+            Boolean(v.availableForSale) || (v.quantityAvailable ?? 0) > 0
+        );
+        return {
+          id: node.id,
+          title: node.title,
+          handle: node.handle,
+          description: node.description,
+          productType: node.productType,
+          vendor: node.vendor,
+          priceRange: {
+            min: minPrice,
+            max: node.priceRange.maxVariantPrice.amount,
+            currency,
+          },
+          inStock: hasAvailableVariant,
+          variants: node.variants.edges.map(
+            ({ node: variant }: { node: any }) => ({
+              id: variant.id,
+              title: variant.title,
+              sku: variant.sku,
+              price: variant.price.amount,
+              compareAtPrice: variant.compareAtPrice?.amount || null,
+              inventoryQuantity: variant.quantityAvailable,
+              availableForSale: variant.availableForSale,
+              options: variant.selectedOptions,
+            })
+          ),
+          images: node.images.edges.map(({ node: image }: { node: any }) => ({
+            url: image.url,
+            altText: image.altText,
+          })),
+        };
+      }
     );
+
+    // If Vapi, return a human-readable string wrapped per Vapi spec
+    if (isVapi) {
+      let spoken = "";
+      if (transformedProducts.length === 0) {
+        spoken = query
+          ? `I couldn't find any products for "${query}".`
+          : "I couldn't find any matching products.";
+      } else {
+        const lines = transformedProducts
+          .slice(0, limit)
+          .map((p: any, idx: number) => {
+            const price = p.priceRange.min;
+            const currency = p.priceRange.currency;
+            const status = p.inStock ? "in stock" : "out of stock";
+            return `${idx + 1}. ${p.title} — ${price} ${currency}, ${status}`;
+          });
+        spoken =
+          `Found ${transformedProducts.length} product${
+            transformedProducts.length === 1 ? "" : "s"
+          }. Top ${Math.min(limit, transformedProducts.length)}: ` +
+          lines.join("; ");
+      }
+      return NextResponse.json(
+        { results: [{ toolCallId: toolCallId || "unknown", result: spoken }] },
+        { headers: corsHeaders(request.headers.get("origin") || undefined) }
+      );
+    }
 
     return NextResponse.json(
       {
