@@ -96,13 +96,19 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-6 flex gap-4 justify-center">
             <Link
               href="/api/inventory/search?limit=1"
               className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
               target="_blank"
             >
               Test API Connection
+            </Link>
+            <Link
+              href="/debug"
+              className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            >
+              API Debug Page
             </Link>
           </div>
         </div>
