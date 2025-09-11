@@ -3,7 +3,6 @@ import { corsHeaders } from "@/lib/cors";
 import { storefrontRequest, PRODUCT_SEARCH_QUERY } from "@/lib/shopify";
 import { logger } from "@/lib/server-logger";
 
-
 // POST method for advanced search with multiple filters
 export async function POST(request: NextRequest) {
   // Log raw incoming request
@@ -34,9 +33,28 @@ export async function POST(request: NextRequest) {
     let cursor = null;
 
     // Check if this is a VAPI tool call
-    if (requestBody.message?.toolCallList?.[0]) {
-      const toolCall = requestBody.message.toolCallList[0];
-      const args = toolCall.function?.arguments || {};
+    if (requestBody.message?.toolCalls?.[0]) {
+      const toolCall = requestBody.message.toolCalls[0];
+      let args = {};
+
+      // Parse arguments if it's a string (VAPI format)
+      if (typeof toolCall.function?.arguments === "string") {
+        try {
+          args = JSON.parse(toolCall.function.arguments);
+        } catch (parseError) {
+          logger.warn("Failed to parse VAPI tool call arguments", {
+            arguments: toolCall.function?.arguments,
+            error:
+              parseError instanceof Error
+                ? parseError.message
+                : String(parseError),
+          });
+          args = {};
+        }
+      } else if (typeof toolCall.function?.arguments === "object") {
+        args = toolCall.function.arguments || {};
+      }
+
       q = (args.q ?? "").toString();
       limit = Math.min(Number(args.limit ?? 5), 50);
       cursor = args.cursor ?? null;

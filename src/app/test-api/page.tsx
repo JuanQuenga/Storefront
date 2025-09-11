@@ -5,7 +5,7 @@ import { useState } from "react";
 export default function TestApiPage() {
   const [requestBody, setRequestBody] = useState(`{
   "message": {
-    "toolCallList": [
+    "toolCalls": [
       {
         "id": "call_test123",
         "type": "function",
@@ -40,7 +40,23 @@ export default function TestApiPage() {
         body: JSON.stringify(parsedBody),
       });
 
-      const data = await res.json();
+      // Handle both JSON and text responses
+      const contentType = res.headers.get("content-type");
+      let data;
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        // API returns plain text, so we'll wrap it in an object for display
+        const textData = await res.text();
+        data = {
+          type: "text",
+          content: textData,
+          status: res.status,
+          statusText: res.statusText,
+        };
+      }
+
       setResponse(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -49,11 +65,10 @@ export default function TestApiPage() {
     }
   };
 
-
   const presetBodies = {
     vapi: `{
   "message": {
-    "toolCallList": [
+    "toolCalls": [
       {
         "id": "call_test123",
         "type": "function",
@@ -154,9 +169,20 @@ export default function TestApiPage() {
                   <h3 className="text-gray-300 font-semibold mb-2">
                     Response:
                   </h3>
-                  <pre className="text-gray-100 text-sm whitespace-pre-wrap overflow-auto max-h-96">
-                    {JSON.stringify(response, null, 2)}
-                  </pre>
+                  {response.type === "text" ? (
+                    <div>
+                      <div className="mb-2 text-xs text-gray-400">
+                        Status: {response.status} {response.statusText}
+                      </div>
+                      <pre className="text-gray-100 text-sm whitespace-pre-wrap overflow-auto max-h-96">
+                        {response.content}
+                      </pre>
+                    </div>
+                  ) : (
+                    <pre className="text-gray-100 text-sm whitespace-pre-wrap overflow-auto max-h-96">
+                      {JSON.stringify(response, null, 2)}
+                    </pre>
+                  )}
                 </div>
               )}
 
@@ -194,7 +220,7 @@ export default function TestApiPage() {
               <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-x-auto">
                 {`{
   "message": {
-    "toolCallList": [{
+    "toolCalls": [{
       "id": "call_123",
       "type": "function",
       "function": {
@@ -209,7 +235,6 @@ export default function TestApiPage() {
 }`}
               </pre>
             </div>
-
           </div>
         </div>
       </div>
