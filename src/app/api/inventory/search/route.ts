@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     // Check if this is a VAPI tool call
     if (requestBody.message?.toolCalls?.[0]) {
       const toolCall = requestBody.message.toolCalls[0];
-      let args = {};
+      let args: any = {};
 
       // Parse arguments if it's a string (VAPI format)
       if (typeof toolCall.function?.arguments === "string") {
